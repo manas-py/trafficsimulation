@@ -255,7 +255,7 @@
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Phase / timer</span>
-                        <span class="stat-value" id="phase-label">NS main · 0.0 s</span>
+                        <span class="stat-value" id="phase-label">NS green · 0.0 s</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Total queue (veh)</span>
@@ -304,8 +304,8 @@
         <section class="panel">
             <h2>Model & Cycle Summary</h2>
             <div class="notes">
-                <p>Cycle structure is hard-coded from the manuscript: NS main straight/right (d1, d2, u2, u3) green for 10 s, NS protected turns (d3, u1) for 5 s, EW main (r1, r2, l2, l3) for 10 s, and EW protected turns (r3, l1) for 5 s. Arrivals obey the Poisson process of Sec. 4.1, the delayed car-following dynamics of Sec. 3.1 at every update step (Δt = 0.1 s), and the saturation release constraint defined by Sec. 3.3 (t<sub>roll</sub>, h, s). Each vehicle retains its velocity history so that dv/dt = A·(v<sub>leader</sub>(t−T) − v<sub>follower</sub>(t−T)) is evaluated with the appropriate lag.</p>
-                <p>The canvas draws the 12-lane geometry exactly as prescribed: three approach lanes per leg with explicit mapping to the downstream lanes (wr, er, wl, el, nu, su, nd, sd). Colors indicate the current signal permission; stopped platoons accumulate queue delay until the physics-accurate headway clock authorizes another discharge.</p>
+                <p>Cycle control follows a conventional two-phase sequence derived from the paper’s timing tables: north/south lanes (d1–d3, u1–u3) share a 14&nbsp;s green, then every approach observes a 2&nbsp;s “all red” clearance, east/west lanes (r1–r3, l1–l3) take their 14&nbsp;s green, and another clearance closes the loop. Poisson arrivals from Sec.&nbsp;4.1 are sampled once per approach and then randomly assigned to the lane-specific turn options according to their prevalence, ensuring the spatially random platoons illustrated in the manuscript.</p>
+                <p>The canvas draws the 12-lane geometry exactly as prescribed: three approach lanes per leg with explicit mapping to the downstream lanes (wr, er, wl, el, nu, su, nd, sd), textured asphalt, crosswalks, and stylized vehicles so the visuals match the reference figure while still highlighting signal permissions and queue growth governed by the microscopic driver-delay physics.</p>
             </div>
         </section>
     </main>
@@ -345,11 +345,13 @@
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
+        const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
+
         const phasePlan = [
-            { name: 'NS main', duration: 10, greens: ['d1', 'd2', 'u2', 'u3'] },
-            { name: 'NS turns', duration: 5, greens: ['d3', 'u1'] },
-            { name: 'EW main', duration: 10, greens: ['r1', 'r2', 'l2', 'l3'] },
-            { name: 'EW turns', duration: 5, greens: ['r3', 'l1'] }
+            { name: 'NS green', duration: 14, greens: ['d1', 'd2', 'd3', 'u1', 'u2', 'u3'] },
+            { name: 'All red', duration: 2, greens: [] },
+            { name: 'EW green', duration: 14, greens: ['r1', 'r2', 'r3', 'l1', 'l2', 'l3'] },
+            { name: 'All red', duration: 2, greens: [] }
         ];
 
         const charts = initCharts();
@@ -364,6 +366,11 @@
                 this.history = new Array(this.historyLength).fill(0);
                 this.historyIndex = 0;
                 this.released = false;
+                this.length = 16;
+                this.width = 8;
+                this.bodyColor = CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)];
+                this.roofColor = 'rgba(255, 255, 255, 0.12)';
+                this.windowColor = 'rgba(15, 23, 42, 0.85)';
             }
 
             recordSpeed() {
@@ -495,6 +502,7 @@
                 this.dt = CONST.DT;
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
+                this.activePhaseName = phasePlan[0].name;
                 this.running = true;
                 this.params = {
                     T: parseFloat(UI.reaction.value),
@@ -512,9 +520,23 @@
                     throughput: 0
                 };
                 this.geometry = this.buildGeometry();
+                this.approachMap = {
+                    north: ['d1', 'd2', 'd3'],
+                    south: ['u1', 'u2', 'u3'],
+                    east: ['r1', 'r2', 'r3'],
+                    west: ['l1', 'l2', 'l3']
+                };
                 this.lanes = this.buildLanes();
+                this.refreshLaneLookup();
                 this.updateDerived();
                 this.loop();
+            }
+
+            refreshLaneLookup() {
+                this.laneMap = {};
+                this.lanes.forEach(lane => {
+                    this.laneMap[lane.id] = lane;
+                });
             }
 
             buildGeometry() {
@@ -715,18 +737,18 @@
 
             buildLanes() {
                 const configs = [
-                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS main'], color: '#fbbf24' },
-                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS main'], color: '#fbbf24' },
-                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS turns'], color: '#f97316' },
-                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS turns'], color: '#f97316' },
-                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS main'], color: '#fbbf24' },
-                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS main'], color: '#fbbf24' },
-                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW main'], color: '#4ade80' },
-                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW main'], color: '#4ade80' },
-                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW turns'], color: '#22d3ee' },
-                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW turns'], color: '#22d3ee' },
-                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW main'], color: '#4ade80' },
-                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW main'], color: '#4ade80' }
+                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 0.7 },
+                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 1.2 },
+                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS green'], color: '#f97316', arrivalWeight: 0.9 },
+                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS green'], color: '#f97316', arrivalWeight: 0.7 },
+                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 1.2 },
+                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 0.9 },
+                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 0.9 },
+                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 1.2 },
+                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW green'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW green'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 1.2 },
+                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 0.9 }
                 ];
                 return configs.map(cfg => {
                     const built = cfg.builder();
@@ -749,7 +771,6 @@
                 this.tRoll = this.T + CONST.V_MIN / (this.A * this.vFree);
                 this.headway = this.tRoll + CONST.TAU;
                 this.saturation = 3600 / this.headway;
-                this.arrivalRatePerLane = (this.lambdaPerApproach / 3) / 60; // veh/s per lane
                 UI.headway.textContent = this.headway.toFixed(2);
                 UI.saturation.textContent = this.saturation.toFixed(0);
                 updateHeadwayChart(charts.headway, this.A, this.params.T);
@@ -768,10 +789,33 @@
             }
 
             spawnVehicles() {
-                for (const lane of this.lanes) {
-                    const arrivals = this.poisson(this.arrivalRatePerLane * lane.arrivalWeight * this.dt);
-                    lane.spawn(arrivals);
+                // Approach-level Poisson sampling (Sec. 4.1) with random lane allocation
+                const arrivalsPerApproach = (this.params.lambda / 60) * this.dt;
+                Object.values(this.approachMap).forEach(laneIds => {
+                    const arrivals = this.poisson(arrivalsPerApproach);
+                    if (!arrivals) return;
+                    const allocation = new Map();
+                    for (let i = 0; i < arrivals; i++) {
+                        const lane = this.weightedLaneChoice(laneIds);
+                        allocation.set(lane.id, (allocation.get(lane.id) || 0) + 1);
+                    }
+                    allocation.forEach((count, laneId) => {
+                        this.laneMap[laneId].spawn(count);
+                    });
+                });
+            }
+
+            weightedLaneChoice(laneIds) {
+                const lanes = laneIds.map(id => this.laneMap[id]);
+                const totalWeight = lanes.reduce((sum, lane) => sum + (lane.arrivalWeight || 1), 0);
+                let draw = Math.random() * totalWeight;
+                for (const lane of lanes) {
+                    draw -= (lane.arrivalWeight || 1);
+                    if (draw <= 0) {
+                        return lane;
+                    }
                 }
+                return lanes[lanes.length - 1];
             }
 
             registerDeparture(car) {
@@ -787,6 +831,7 @@
                     this.phaseTimer = 0;
                 }
                 const current = phasePlan[this.phaseIndex];
+                this.activePhaseName = current.name;
                 for (const lane of this.lanes) {
                     lane.handleSignal(current.name, this.time);
                 }
@@ -830,16 +875,82 @@
                 for (const lane of this.lanes) {
                     this.drawVehicles(lane);
                 }
+                if (this.activePhaseName === 'All red') {
+                    this.drawAllRedOverlay();
+                }
+            }
+
+            drawAllRedOverlay() {
+                const ctx = this.ctx;
+                const g = this.geometry;
+                ctx.fillStyle = 'rgba(248, 113, 113, 0.15)';
+                ctx.fillRect(g.cx - g.intersection / 2, g.cy - g.intersection / 2, g.intersection, g.intersection);
+                ctx.fillStyle = 'rgba(248, 113, 113, 0.8)';
+                ctx.font = 'bold 16px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('ALL RED', g.cx, g.cy - 6);
+                ctx.font = '12px Inter, sans-serif';
+                ctx.fillText('clearing intersection', g.cx, g.cy + 12);
             }
 
             drawRoad() {
                 const ctx = this.ctx;
                 const g = this.geometry;
-                ctx.fillStyle = '#1f2937';
-                ctx.fillRect(g.cx - g.intersection * 1.1, 0, g.intersection * 2.2, CANVAS.height);
-                ctx.fillRect(0, g.cy - g.intersection * 1.1, CANVAS.width, g.intersection * 2.2);
-                ctx.fillStyle = '#111827';
+
+                const asphalt = ctx.createLinearGradient(0, 0, CANVAS.width, CANVAS.height);
+                asphalt.addColorStop(0, '#1c1f2b');
+                asphalt.addColorStop(1, '#0f1119');
+
+                ctx.fillStyle = asphalt;
+                ctx.fillRect(g.cx - g.intersection * 1.2, 0, g.intersection * 2.4, CANVAS.height);
+                ctx.fillRect(0, g.cy - g.intersection * 1.2, CANVAS.width, g.intersection * 2.4);
+
+                ctx.fillStyle = '#0b0d13';
                 ctx.fillRect(g.cx - g.intersection / 2, g.cy - g.intersection / 2, g.intersection, g.intersection);
+
+                ctx.fillStyle = '#374151';
+                ctx.fillRect(g.cx - g.intersection * 1.4, g.cy - g.intersection * 1.4, g.intersection * 2.8, 18);
+                ctx.fillRect(g.cx - g.intersection * 1.4, g.cy + g.intersection * 1.4 - 18, g.intersection * 2.8, 18);
+                ctx.fillRect(g.cx - g.intersection * 1.4, g.cy - g.intersection * 1.4, 18, g.intersection * 2.8);
+                ctx.fillRect(g.cx + g.intersection * 1.4 - 18, g.cy - g.intersection * 1.4, 18, g.intersection * 2.8);
+
+                ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([18, 14]);
+                const verticalStart = g.cx - this.geometry.lanePitch * 3;
+                for (let i = 1; i < 6; i++) {
+                    const x = verticalStart + i * this.geometry.lanePitch;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.lineTo(x, CANVAS.height);
+                    ctx.stroke();
+                }
+                const horizontalStart = g.cy - this.geometry.lanePitch * 3;
+                for (let i = 1; i < 6; i++) {
+                    const y = horizontalStart + i * this.geometry.lanePitch;
+                    ctx.beginPath();
+                    ctx.moveTo(0, y);
+                    ctx.lineTo(CANVAS.width, y);
+                    ctx.stroke();
+                }
+                ctx.setLineDash([]);
+
+                ctx.fillStyle = '#fef9c3';
+                const barWidth = this.geometry.lanePitch * 3;
+                ctx.fillRect(g.cx - barWidth, g.cy - g.intersection / 2 - 6, barWidth * 2, 4);
+                ctx.fillRect(g.cx - barWidth, g.cy + g.intersection / 2 + 2, barWidth * 2, 4);
+                ctx.fillRect(g.cx - g.intersection / 2 - 6, g.cy - barWidth, 4, barWidth * 2);
+                ctx.fillRect(g.cx + g.intersection / 2 + 2, g.cy - barWidth, 4, barWidth * 2);
+
+                const stripeWidth = 6;
+                const stripeSpacing = 12;
+                ctx.fillStyle = 'rgba(255,255,255,0.65)';
+                for (let i = -4; i <= 4; i++) {
+                    ctx.fillRect(g.cx - g.intersection / 2 - 30 + i * stripeSpacing, g.cy - g.intersection / 2 - 18, stripeWidth, 18);
+                    ctx.fillRect(g.cx - g.intersection / 2 - 30 + i * stripeSpacing, g.cy + g.intersection / 2, stripeWidth, 18);
+                    ctx.fillRect(g.cx - g.intersection / 2 - 18, g.cy - g.intersection / 2 - 30 + i * stripeSpacing, 18, stripeWidth);
+                    ctx.fillRect(g.cx + g.intersection / 2, g.cy - g.intersection / 2 - 30 + i * stripeSpacing, 18, stripeWidth);
+                }
             }
 
             drawVehicles(lane) {
@@ -847,11 +958,28 @@
                 for (const car of lane.vehicles) {
                     const pt = this.pointAlongPath(lane.path, car.distance);
                     const heading = this.headingAlongPath(lane.path, car.distance);
+                    const angle = Math.atan2(heading.y, heading.x);
+
                     ctx.save();
                     ctx.translate(pt.x, pt.y);
-                    ctx.rotate(Math.atan2(heading.y, heading.x));
-                    ctx.fillStyle = lane.isGreenNow ? lane.color : '#ef4444';
-                    ctx.fillRect(-CONST.VEHICLE_LENGTH / 2, -4, CONST.VEHICLE_LENGTH, 8);
+                    ctx.rotate(angle);
+
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+                    ctx.beginPath();
+                    ctx.ellipse(0, car.width * 0.6, car.length * 0.65, car.width, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    drawRoundedRect(ctx, -car.length / 2, -car.width / 2, car.length, car.width, 3, car.bodyColor);
+                    drawRoundedRect(ctx, -car.length * 0.18, -car.width * 0.35, car.length * 0.36, car.width * 0.7, 2, car.windowColor);
+                    drawRoundedRect(ctx, -car.length * 0.1, -car.width * 0.18, car.length * 0.2, car.width * 0.36, 1.5, car.roofColor);
+
+                    ctx.fillStyle = '#fde68a';
+                    ctx.fillRect(car.length / 2 - 2.5, -car.width / 2 + 1, 2, 2.8);
+                    ctx.fillRect(car.length / 2 - 2.5, car.width / 2 - 3.8, 2, 2.8);
+                    ctx.fillStyle = '#f87171';
+                    ctx.fillRect(-car.length / 2, -car.width / 2 + 1, 2, 2.8);
+                    ctx.fillRect(-car.length / 2, car.width / 2 - 3.8, 2, 2.8);
+
                     ctx.restore();
                 }
             }
@@ -892,8 +1020,10 @@
                 this.time = 0;
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
+                this.activePhaseName = phasePlan[0].name;
                 this.stats = { departed: 0, totalDelay: 0, queue: 0, throughput: 0 };
                 this.lanes = this.buildLanes();
+                this.refreshLaneLookup();
             }
         }
 
@@ -936,7 +1066,8 @@
 
         function computeDelayValue(sim, lambdaOverride) {
             const C = phasePlan.reduce((sum, p) => sum + p.duration, 0);
-            const g = 10;
+            const nsPhase = phasePlan.find(phase => phase.name === 'NS green');
+            const g = nsPhase ? nsPhase.duration : C / 2;
             const r = C - g;
             const s = sim.saturation / 3600;
             const lambdaApproach = lambdaOverride ?? sim.params.lambda;
@@ -945,6 +1076,22 @@
                 return Infinity;
             }
             return (r * r / (2 * C)) * (1 + lambdaSec / (s - lambdaSec));
+        }
+
+        function drawRoundedRect(ctx, x, y, width, height, radius, color) {
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(x + radius, y);
+            ctx.lineTo(x + width - radius, y);
+            ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+            ctx.lineTo(x + width, y + height - radius);
+            ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+            ctx.lineTo(x + radius, y + height);
+            ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+            ctx.lineTo(x, y + radius);
+            ctx.quadraticCurveTo(x, y, x + radius, y);
+            ctx.closePath();
+            ctx.fill();
         }
 
         function initCharts() {
