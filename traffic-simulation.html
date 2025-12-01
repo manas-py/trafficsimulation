@@ -3,506 +3,1049 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Traffic Intersection Simulation - MAT 471</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <title>Microscopic Traffic Simulation – MAT 471</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js" defer></script>
     <style>
+        :root {
+            color-scheme: light dark;
+            --bg: #0f172a;
+            --panel: #1e293b;
+            --accent: #38bdf8;
+            --accent-2: #fbbf24;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+        }
+
         * {
             box-sizing: border-box;
-            margin: 0;
-            padding: 0;
         }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-            color: #333;
-        }
-
-        .container {
-            max-width: 1600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            padding: 30px;
-        }
-
-        h1 {
-            text-align: center;
-            color: #2c3e50;
-            margin-bottom: 10px;
-            font-size: 2.5em;
-        }
-
-        .subtitle {
-            text-align: center;
-            color: #7f8c8d;
-            margin-bottom: 30px;
-            font-size: 1.1em;
-        }
-
-        .simulation-layout {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .controls-panel {
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-            height: fit-content;
-            position: sticky;
-            top: 20px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-
-        .control-group {
-            margin-bottom: 20px;
-        }
-
-        .control-group label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 0.9em;
-        }
-
-        .control-group input[type="number"],
-        .control-group input[type="range"] {
-            width: 100%;
-            padding: 8px;
-            border: 2px solid #ddd;
-            border-radius: 5px;
-            font-size: 0.95em;
-        }
-
-        .control-group input[type="range"] {
+            margin: 0;
             padding: 0;
-            margin-top: 5px;
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            background: radial-gradient(circle at top, #1f2937, #0b1120 60%);
+            color: var(--text);
         }
 
-        .value-display {
-            display: inline-block;
-            margin-left: 10px;
-            color: #667eea;
-            font-weight: bold;
+        header {
+            padding: 24px;
+            text-align: center;
+            background: rgba(15, 23, 42, 0.75);
+            border-bottom: 1px solid rgba(148, 163, 184, 0.15);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            backdrop-filter: blur(12px);
         }
 
-        .button-group {
+        header h1 {
+            margin: 0;
+            font-size: clamp(1.6rem, 3vw, 2.4rem);
+            letter-spacing: 0.04em;
+        }
+
+        header p {
+            margin: 0.4rem 0 0;
+            color: var(--muted);
+            font-size: 0.95rem;
+        }
+
+        main {
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 24px;
             display: flex;
-            gap: 10px;
-            margin-top: 20px;
-            flex-wrap: wrap;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: minmax(320px, 360px) 1fr;
+            gap: 24px;
+        }
+
+        .panel {
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid rgba(51, 65, 85, 0.7);
+            border-radius: 18px;
+            padding: 20px;
+            box-shadow: 0 20px 40px rgba(2, 6, 23, 0.6);
+            position: relative;
+        }
+
+        .panel h2 {
+            margin: 0 0 1rem;
+            font-size: 1.1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--accent);
+        }
+
+        .controls-group {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+            color: var(--muted);
+        }
+
+        input[type="range"] {
+            width: 100%;
+        }
+
+        .value-chip {
+            font-weight: 600;
+            color: var(--accent-2);
         }
 
         button {
-            flex: 1;
-            min-width: 120px;
-            padding: 12px;
             border: none;
-            border-radius: 5px;
-            font-size: 1em;
+            border-radius: 12px;
+            padding: 12px 18px;
+            font-size: 0.95rem;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s;
+            color: #0f172a;
+            background: var(--accent);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
 
-        .btn-primary {
-            background: #667eea;
-            color: white;
+        button.secondary {
+            background: rgba(148, 163, 184, 0.25);
+            color: var(--text);
         }
 
-        .btn-primary:hover {
-            background: #5568d3;
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: #95a5a6;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #7f8c8d;
-        }
-
-        .btn-success {
-            background: #27ae60;
-            color: white;
-        }
-
-        .btn-success:hover {
-            background: #229954;
-        }
-
-        .btn-danger {
-            background: #e74c3c;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #c0392b;
-        }
-
-        .visualization-area {
-            background: #ecf0f1;
-            border-radius: 10px;
-            padding: 20px;
-            min-height: 500px;
-        }
-
-        .intersection-canvas {
-            width: 100%;
-            height: 600px;
-            background: #2c3e50;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .canvas-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
+        button:active {
+            transform: translateY(1px);
         }
 
         canvas {
-            display: block;
+            border-radius: 16px;
+            background: #0a0f1a;
             width: 100%;
-            height: 100%;
+            height: auto;
         }
 
-        .stats-panel {
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-top: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
         }
 
         .stat-card {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 16px;
+            border-radius: 14px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.15);
         }
 
-        .stat-card h3 {
-            font-size: 0.9em;
-            color: #7f8c8d;
-            margin-bottom: 5px;
+        .stat-card span {
+            display: block;
         }
 
-        .stat-card .value {
-            font-size: 1.8em;
-            font-weight: bold;
-            color: #2c3e50;
+        .stat-label {
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            color: var(--muted);
+            letter-spacing: 0.08em;
         }
 
-        .lanes-display {
+        .stat-value {
+            font-size: 1.7rem;
+            font-weight: 600;
+            margin-top: 6px;
+        }
+
+        .charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+
+        .legend {
+            margin-top: 16px;
+            font-size: 0.85rem;
+            color: var(--muted);
             display: grid;
             grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-top: 15px;
+            gap: 6px 16px;
         }
 
-        .direction-panel {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        .legend strong {
+            color: var(--text);
         }
 
-        .direction-panel h4 {
-            font-size: 1em;
-            color: #2c3e50;
-            margin-bottom: 10px;
-            text-align: center;
+        .notes {
+            line-height: 1.6;
+            font-size: 0.95rem;
+            color: var(--muted);
         }
 
-        .lane-info {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 5px 0;
-            border-bottom: 1px solid #eee;
-        }
-
-        .lane-info:last-child {
-            border-bottom: none;
-        }
-
-        .lane-label {
-            font-size: 0.9em;
-            color: #7f8c8d;
-        }
-
-        .lane-queue {
-            font-size: 1.2em;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-
-        .charts-section {
-            margin-top: 30px;
-        }
-
-        .chart-container {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .chart-container h2 {
-            margin-bottom: 15px;
-            color: #2c3e50;
-            font-size: 1.5em;
-        }
-
-        .results-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        .results-table th,
-        .results-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .results-table th {
-            background: #667eea;
-            color: white;
-            font-weight: 600;
-        }
-
-        .results-table tr:hover {
-            background: #f8f9fa;
-        }
-
-        .signal-indicator {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            margin-left: 10px;
-        }
-
-        .signal-green {
-            background: #27ae60;
-            box-shadow: 0 0 10px #27ae60;
-        }
-
-        .signal-red {
-            background: #e74c3c;
-            box-shadow: 0 0 10px #e74c3c;
-        }
-
-        .signal-yellow {
-            background: #f39c12;
-            box-shadow: 0 0 10px #f39c12;
-        }
-
-        .direction-controls {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        @media (max-width: 1024px) {
-            .simulation-layout {
+        @media (max-width: 1100px) {
+            .workspace {
                 grid-template-columns: 1fr;
             }
+        }
 
-            .controls-panel {
-                position: static;
-                max-height: none;
+        @media (max-width: 640px) {
+            main {
+                padding: 16px;
             }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Traffic Intersection Simulation</h1>
-        <p class="subtitle">MAT 471 – Traffic Modeling Project | 4-Way Intersection with Adjustable Lanes</p>
+    <header>
+        <h1>Microscopic Traffic Simulation with Physics-Based Signal Control</h1>
+        <p>Implements the delayed car-following dynamics, saturation flow headways, and Poisson arrivals from “Modeling the Formation of Vehicle Congestion at a Signalized Intersection” (MAT 471, Nov 30 2025)</p>
+    </header>
 
-        <div class="simulation-layout">
-            <div class="controls-panel">
-                <h2 style="margin-bottom: 20px; color: #2c3e50;">Controls</h2>
-
-                <h3 style="font-size: 1em; margin: 20px 0 10px 0; color: #2c3e50;">Lanes per Direction</h3>
-                <div class="direction-controls">
-                    <div class="control-group">
-                        <label>North: <span class="value-display" id="lanes-north-value">2</span></label>
-                        <input type="range" id="lanes-north" min="1" max="4" value="2" step="1">
+    <main>
+        <section class="workspace">
+            <div class="panel" id="controls-panel">
+                <h2>Model Parameters</h2>
+                <div class="controls-group">
+                    <div>
+                        <label for="reaction-input">Reaction delay T (s)<span class="value-chip" id="reaction-value">1.0</span></label>
+                        <input type="range" min="0.5" max="2.5" step="0.1" value="1.0" id="reaction-input">
                     </div>
-                    <div class="control-group">
-                        <label>South: <span class="value-display" id="lanes-south-value">2</span></label>
-                        <input type="range" id="lanes-south" min="1" max="4" value="2" step="1">
+                    <div>
+                        <label for="sensitivity-input">Sensitivity A (s⁻¹)<span class="value-chip" id="sensitivity-value">0.8</span></label>
+                        <input type="range" min="0.3" max="1.6" step="0.1" value="0.8" id="sensitivity-input">
                     </div>
-                    <div class="control-group">
-                        <label>East: <span class="value-display" id="lanes-east-value">2</span></label>
-                        <input type="range" id="lanes-east" min="1" max="4" value="2" step="1">
-                    </div>
-                    <div class="control-group">
-                        <label>West: <span class="value-display" id="lanes-west-value">2</span></label>
-                        <input type="range" id="lanes-west" min="1" max="4" value="2" step="1">
+                    <div>
+                        <label for="lambda-input">Arrival rate λ (veh/min/approach)<span class="value-chip" id="lambda-value">20</span></label>
+                        <input type="range" min="5" max="55" step="1" value="20" id="lambda-input">
                     </div>
                 </div>
-
-                <div class="control-group">
-                    <label>Green Time per Direction (s): <span class="value-display" id="green-time-value">30</span></label>
-                    <input type="number" id="green-time" min="5" max="120" value="30" step="1">
-                    <small style="color: #7f8c8d; font-size: 0.85em;">Green time for N-S, then E-W</small>
+                <div style="display:flex; gap:12px; margin-top:20px; flex-wrap: wrap;">
+                    <button id="pause-btn">Pause</button>
+                    <button class="secondary" id="reset-btn">Reset</button>
                 </div>
-
-                <div class="control-group">
-                    <label>Bike Phase (s): <span class="value-display" id="bike-phase-value">15</span></label>
-                    <input type="number" id="bike-phase" min="0" max="60" value="15" step="1">
-                    <small style="color: #7f8c8d; font-size: 0.85em;">All directions red for bike passing</small>
-                </div>
-
-                <div class="control-group">
-                    <label>Reaction Delay T (s): <span class="value-display" id="T-value">1.2</span></label>
-                    <input type="range" id="T" min="0.5" max="3.0" value="1.2" step="0.1">
-                </div>
-
-                <div class="control-group">
-                    <label>Sensitivity A (s⁻¹): <span class="value-display" id="A-value">0.8</span></label>
-                    <input type="range" id="A" min="0.1" max="2.0" value="0.8" step="0.1">
-                </div>
-
-                <div class="control-group">
-                    <label>Arrival Rate λ (veh/min): <span class="value-display" id="lambda-value">20</span></label>
-                    <input type="range" id="lambda" min="1" max="60" value="20" step="1">
-                </div>
-
-                <div class="control-group">
-                    <label>Max Cars per Lane: <span class="value-display" id="capacity-value">50</span></label>
-                    <input type="number" id="capacity" min="10" max="200" value="50" step="5">
-                </div>
-
-                <div class="control-group">
-                    <label>Time Step Δt (s): <span class="value-display" id="dt-value">0.5</span></label>
-                    <input type="range" id="dt" min="0.1" max="2.0" value="0.5" step="0.1">
-                </div>
-
-                <div class="button-group">
-                    <button class="btn-primary" id="start-btn">Start</button>
-                    <button class="btn-danger" id="stop-btn">Stop</button>
-                </div>
-
-                <div class="button-group">
-                    <button class="btn-secondary" id="reset-btn">Reset</button>
-                    <button class="btn-success" id="export-btn">Export Data</button>
-                </div>
-
-                <div class="button-group" style="margin-top: 10px;">
-                    <button class="btn-primary" id="sweep-lambda-btn" style="font-size: 0.9em;">Sweep λ</button>
-                    <button class="btn-primary" id="sweep-T-btn" style="font-size: 0.9em;">Sweep T</button>
-                </div>
-
-                <div class="button-group" style="margin-top: 10px;">
-                    <button class="btn-primary" id="sweep-green-btn" style="font-size: 0.9em;">Sweep Green Time</button>
-                </div>
-
-                <div class="button-group" style="margin-top: 10px;">
-                    <button class="btn-secondary" id="export-charts-btn" style="font-size: 0.9em;">Export Charts</button>
-                </div>
-
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 2px solid #ddd;">
-                    <h3 style="font-size: 1em; margin-bottom: 10px;">Signal Status</h3>
-                    <div id="signal-status">
-                        <span>Status: </span>
-                        <span class="signal-indicator signal-green" id="signal-light"></span>
-                        <span id="signal-text">Green (N-S)</span>
-                        <div style="margin-top: 10px; font-size: 0.9em;">
-                            Time in phase: <span id="phase-time">0</span>s
-                        </div>
-                        <div style="margin-top: 10px; font-size: 0.85em; line-height: 1.6;">
-                            <span id="active-directions">Green: North, South<br>Red: East, West</span>
-                        </div>
-                    </div>
+                <div class="legend">
+                    <strong>d1:</strong> N→W left to wr1
+                    <strong>d2:</strong> N→S straight to sd2
+                    <strong>d3:</strong> N→E right to el1
+                    <strong>u1:</strong> S→W left to wr3
+                    <strong>u2:</strong> S→N straight to nu2
+                    <strong>u3:</strong> S→E right to el3
+                    <strong>r1:</strong> E→N right to nu3
+                    <strong>r2:</strong> E→W straight to wr2
+                    <strong>r3:</strong> E→S left to sd3
+                    <strong>l1:</strong> W→N left to nu1
+                    <strong>l2:</strong> W→E straight to el2
+                    <strong>l3:</strong> W→S right to sd1
                 </div>
             </div>
 
-            <div class="visualization-area">
-                <div class="intersection-canvas">
-                    <div class="canvas-container">
-                        <canvas id="intersection-canvas"></canvas>
+            <div class="panel">
+                <h2>North–South / East–West Intersection</h2>
+                <canvas id="simCanvas" width="1024" height="720"></canvas>
+                <div class="stats-grid" style="margin-top:16px;">
+                    <div class="stat-card">
+                        <span class="stat-label">Simulation time (s)</span>
+                        <span class="stat-value" id="sim-time">0.0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Phase / timer</span>
+                        <span class="stat-value" id="phase-label">NS main · 0.0 s</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Total queue (veh)</span>
+                        <span class="stat-value" id="queue-value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Avg delay (s/veh)</span>
+                        <span class="stat-value" id="delay-value">0.0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Throughput (veh/h)</span>
+                        <span class="stat-value" id="throughput-value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Headway h (s)</span>
+                        <span class="stat-value" id="headway-value">0.00</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Saturation flow s (veh/h/ln)</span>
+                        <span class="stat-value" id="saturation-value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Formula delay W (s)</span>
+                        <span class="stat-value" id="formula-delay">0.0</span>
                     </div>
                 </div>
+            </div>
+        </section>
 
-                <div class="lanes-display" id="lanes-display"></div>
-
-                <div class="stats-panel">
-                    <div class="stat-card">
-                        <h3>Total Queue Length</h3>
-                        <div class="value" id="total-queue">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Average Delay (s)</h3>
-                        <div class="value" id="avg-delay">0.0</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Throughput (veh/h)</h3>
-                        <div class="value" id="throughput">0</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Simulation Time (s)</h3>
-                        <div class="value" id="sim-time">0.0</div>
-                    </div>
-                    <div class="stat-card">
-                        <h3>Theoretical Delay (s)</h3>
-                        <div class="value" id="theoretical-delay">0.0</div>
-                    </div>
+        <section class="panel">
+            <h2>Analytical Diagnostics (paper equations)</h2>
+            <div class="charts">
+                <div>
+                    <canvas id="headway-chart" width="400" height="300"></canvas>
+                </div>
+                <div>
+                    <canvas id="delay-chart" width="400" height="300"></canvas>
                 </div>
             </div>
-        </div>
-
-        <div class="charts-section">
-            <div class="chart-container">
-                <h2>Queue Length vs Time</h2>
-                <canvas id="queue-chart"></canvas>
+            <div class="notes" style="margin-top:18px;">
+                <p><strong>Headway curve:</strong> h(T) = T + v<sub>min</sub>/(Av₀) + τ (Sec. 3.3). The highlighted point is the current reaction delay selection.</p>
+                <p><strong>Delay curve:</strong> W(λ) = (r² / 2C) · (1 + λ/(s − λ)) (Eq. 8) with cycle {10,5,10,5} s. The scatter point marks the operating arrival rate. Both curves recompute whenever T, A, or λ change.</p>
             </div>
+        </section>
 
-            <div class="chart-container">
-                <h2>Average Delay vs Arrival Rate</h2>
-                <canvas id="delay-chart"></canvas>
+        <section class="panel">
+            <h2>Model & Cycle Summary</h2>
+            <div class="notes">
+                <p>Cycle structure is hard-coded from the manuscript: NS main straight/right (d1, d2, u2, u3) green for 10 s, NS protected turns (d3, u1) for 5 s, EW main (r1, r2, l2, l3) for 10 s, and EW protected turns (r3, l1) for 5 s. Arrivals obey the Poisson process of Sec. 4.1, the delayed car-following dynamics of Sec. 3.1 at every update step (Δt = 0.1 s), and the saturation release constraint defined by Sec. 3.3 (t<sub>roll</sub>, h, s). Each vehicle retains its velocity history so that dv/dt = A·(v<sub>leader</sub>(t−T) − v<sub>follower</sub>(t−T)) is evaluated with the appropriate lag.</p>
+                <p>The canvas draws the 12-lane geometry exactly as prescribed: three approach lanes per leg with explicit mapping to the downstream lanes (wr, er, wl, el, nu, su, nd, sd). Colors indicate the current signal permission; stopped platoons accumulate queue delay until the physics-accurate headway clock authorizes another discharge.</p>
             </div>
+        </section>
+    </main>
 
-            <div class="chart-container">
-                <h2>Results Summary Table</h2>
-                <table class="results-table" id="results-table">
-                    <thead>
-                        <tr>
-                            <th>Parameter</th>
-                            <th>Value</th>
-                            <th>Avg Queue Length</th>
-                            <th>Avg Delay (s)</th>
-                            <th>Theoretical Delay (s)</th>
-                            <th>Throughput (veh/h)</th>
-                        </tr>
-                    </thead>
-                    <tbody id="results-tbody">
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+    <script>
+    window.addEventListener('DOMContentLoaded', () => {
+        const CANVAS = document.getElementById('simCanvas');
+        const CTX = CANVAS.getContext('2d');
 
-    <script src="traffic-simulation.js"></script>
+        const UI = {
+            reaction: document.getElementById('reaction-input'),
+            reactionValue: document.getElementById('reaction-value'),
+            sensitivity: document.getElementById('sensitivity-input'),
+            sensitivityValue: document.getElementById('sensitivity-value'),
+            lambda: document.getElementById('lambda-input'),
+            lambdaValue: document.getElementById('lambda-value'),
+            pause: document.getElementById('pause-btn'),
+            reset: document.getElementById('reset-btn'),
+            time: document.getElementById('sim-time'),
+            phase: document.getElementById('phase-label'),
+            queue: document.getElementById('queue-value'),
+            delay: document.getElementById('delay-value'),
+            throughput: document.getElementById('throughput-value'),
+            headway: document.getElementById('headway-value'),
+            saturation: document.getElementById('saturation-value'),
+            formulaDelay: document.getElementById('formula-delay')
+        };
+
+        const CONST = {
+            DT: 0.1,
+            V_MIN: 2,
+            V_FREE: 10,
+            TAU: 0.30,
+            VEHICLE_LENGTH: 5,
+            MIN_GAP: 7,
+            STOP_BUFFER: 1.5,
+            CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
+        };
+
+        const phasePlan = [
+            { name: 'NS main', duration: 10, greens: ['d1', 'd2', 'u2', 'u3'] },
+            { name: 'NS turns', duration: 5, greens: ['d3', 'u1'] },
+            { name: 'EW main', duration: 10, greens: ['r1', 'r2', 'l2', 'l3'] },
+            { name: 'EW turns', duration: 5, greens: ['r3', 'l1'] }
+        ];
+
+        const charts = initCharts();
+
+        class Vehicle {
+            constructor(lane, distance, params) {
+                this.lane = lane;
+                this.distance = distance;
+                this.speed = 0;
+                this.delay = 0;
+                this.historyLength = params.historyLength;
+                this.history = new Array(this.historyLength).fill(0);
+                this.historyIndex = 0;
+                this.released = false;
+            }
+
+            recordSpeed() {
+                this.history[this.historyIndex] = this.speed;
+                this.historyIndex = (this.historyIndex + 1) % this.historyLength;
+            }
+
+            delayedSpeed(steps) {
+                const idx = (this.historyIndex - steps + this.historyLength) % this.historyLength;
+                return this.history[idx];
+            }
+        }
+
+        class Lane {
+            constructor(config, simulation) {
+                this.sim = simulation;
+                this.id = config.id;
+                this.path = config.path;
+                this.stopDistance = config.stopDistance;
+                this.greenPhases = config.greenPhases;
+                this.color = config.color;
+                this.arrivalWeight = config.arrivalWeight ?? 1;
+                this.vehicles = [];
+                this.isGreenNow = false;
+                this.wasGreen = false;
+                this.lastReleaseTime = -Infinity;
+                this.hasReleasedOnce = false;
+            }
+
+            handleSignal(phaseName, time) {
+                const green = this.greenPhases.includes(phaseName);
+                if (green && !this.wasGreen) {
+                    this.lastReleaseTime = time;
+                    this.hasReleasedOnce = false;
+                }
+                if (!green && this.wasGreen) {
+                    this.hasReleasedOnce = false;
+                }
+                this.wasGreen = green;
+                this.isGreenNow = green;
+            }
+
+            spawn(arrivals) {
+                for (let i = 0; i < arrivals; i++) {
+                    const head = this.vehicles.length > 0 ? this.vehicles[0] : null;
+                    if (head && head.distance < this.sim.minSpawnDistance) break;
+                    const vehicle = new Vehicle(this, 0, this.sim.vehicleParams);
+                    this.vehicles.unshift(vehicle);
+                }
+            }
+
+            updateVehicles(dt) {
+                if (!this.vehicles.length) return;
+                this.vehicles.sort((a, b) => a.distance - b.distance);
+                const delaySteps = this.sim.delaySteps;
+
+                for (let i = this.vehicles.length - 1; i >= 0; i--) {
+                    const car = this.vehicles[i];
+                    const leader = i === this.vehicles.length - 1 ? null : this.vehicles[i + 1];
+                    let allowed = this.path.totalLength - 1;
+
+                    if (leader) {
+                        allowed = Math.min(allowed, leader.distance - this.sim.minGap);
+                    }
+
+                    const isAheadOfStop = car.distance >= this.stopDistance - CONST.STOP_BUFFER;
+                    if (!this.isGreenNow && car.distance < this.stopDistance) {
+                        allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
+                    }
+
+                    if (this.isGreenNow && !leader && car.distance < this.stopDistance) {
+                        const gap = this.hasReleasedOnce ? this.sim.headway : this.sim.tRoll;
+                        const timeSince = this.sim.time - this.lastReleaseTime;
+                        if (timeSince < gap) {
+                            allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
+                        }
+                    }
+
+                    let leaderSpeed = leader ? leader.delayedSpeed(delaySteps) : this.sim.vFree;
+                    if (allowed - car.distance <= 0.1) {
+                        leaderSpeed = 0;
+                    }
+                    const followerSpeed = car.delayedSpeed(delaySteps);
+                    const accel = this.sim.A * (leaderSpeed - followerSpeed);
+                    car.speed = clamp(car.speed + accel * dt, 0, this.sim.vFree);
+                    car.distance = Math.min(car.distance + car.speed * dt, allowed);
+
+                    if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
+                        this.lastReleaseTime = this.sim.time;
+                        this.hasReleasedOnce = true;
+                        car.released = true;
+                    }
+
+                    if (car.distance < this.stopDistance - 2 && car.speed < 0.5) {
+                        car.delay += dt;
+                    }
+
+                    car.recordSpeed();
+                }
+
+                const survivors = [];
+                for (const car of this.vehicles) {
+                    if (car.distance >= this.path.totalLength - 2) {
+                        this.sim.registerDeparture(car);
+                    } else {
+                        survivors.push(car);
+                    }
+                }
+                this.vehicles = survivors;
+            }
+
+            queueLength() {
+                return this.vehicles.filter(v => v.distance < this.stopDistance - 1).length;
+            }
+
+            pointAt(distance) {
+                return this.sim.pointAlongPath(this.path, distance);
+            }
+
+            headingAt(distance) {
+                return this.sim.headingAlongPath(this.path, distance);
+            }
+        }
+
+        class Simulation {
+            constructor() {
+                this.ctx = CTX;
+                this.time = 0;
+                this.dt = CONST.DT;
+                this.phaseIndex = 0;
+                this.phaseTimer = 0;
+                this.running = true;
+                this.params = {
+                    T: parseFloat(UI.reaction.value),
+                    A: parseFloat(UI.sensitivity.value),
+                    lambda: parseFloat(UI.lambda.value)
+                };
+                this.vFree = CONST.V_FREE;
+                this.vehicleParams = { historyLength: 120 };
+                this.minGap = CONST.MIN_GAP;
+                this.minSpawnDistance = 9;
+                this.stats = {
+                    departed: 0,
+                    totalDelay: 0,
+                    queue: 0,
+                    throughput: 0
+                };
+                this.geometry = this.buildGeometry();
+                this.lanes = this.buildLanes();
+                this.updateDerived();
+                this.loop();
+            }
+
+            buildGeometry() {
+                const cx = CONST.CANVAS.WIDTH / 2;
+                const cy = CONST.CANVAS.HEIGHT / 2;
+                return {
+                    cx,
+                    cy,
+                    approach: 280,
+                    exit: 260,
+                    intersection: 170,
+                    lanePitch: 22
+                };
+            }
+
+            verticalIndex(name) {
+                const base = name.replace(/^[sn]/, '');
+                const normalized = base.startsWith('d') || base.startsWith('u') ? base : base.substring(1);
+                const order = ['d1', 'd2', 'd3', 'u1', 'u2', 'u3'];
+                return order.indexOf(normalized);
+            }
+
+            horizontalIndex(name) {
+                const cleaned = name.replace(/^w|^e/, '');
+                const normalized = cleaned.startsWith('r') || cleaned.startsWith('l') ? cleaned : cleaned.substring(1);
+                const order = ['r1', 'r2', 'r3', 'l1', 'l2', 'l3'];
+                return order.indexOf(normalized);
+            }
+
+            laneX(name) {
+                const idx = this.verticalIndex(name);
+                const offset = (idx - 2.5) * this.geometry.lanePitch;
+                return this.geometry.cx + offset;
+            }
+
+            laneY(name) {
+                const idx = this.horizontalIndex(name);
+                const offset = (idx - 2.5) * this.geometry.lanePitch;
+                return this.geometry.cy + offset;
+            }
+
+            pathWithStop(points, stopIndex) {
+                const segments = [];
+                let total = 0;
+                for (let i = 0; i < points.length - 1; i++) {
+                    const start = points[i];
+                    const end = points[i + 1];
+                    const length = Math.hypot(end.x - start.x, end.y - start.y);
+                    segments.push({ start, end, length, startDist: total });
+                    total += length;
+                }
+                let stop = 0;
+                for (let i = 0; i < stopIndex; i++) {
+                    stop += Math.hypot(points[i + 1].x - points[i].x, points[i + 1].y - points[i].y);
+                }
+                return { path: { segments, totalLength: total }, stopDistance: stop };
+            }
+
+            northStraight(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: this.laneX(lane), y: g.cy - g.approach },
+                    { x: this.laneX(lane), y: g.cy - g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy + g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy + g.exit }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            northToEast(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: this.laneX(lane), y: g.cy - g.approach },
+                    { x: this.laneX(lane), y: g.cy - g.intersection / 2 },
+                    { x: g.cx + g.intersection / 4, y: g.cy - g.intersection / 4 },
+                    { x: g.cx + g.intersection / 2, y: this.laneY(target) },
+                    { x: g.cx + g.exit, y: this.laneY(target) }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            northToWest(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: this.laneX(lane), y: g.cy - g.approach },
+                    { x: this.laneX(lane), y: g.cy - g.intersection / 2 },
+                    { x: g.cx - g.intersection / 4, y: g.cy - g.intersection / 4 },
+                    { x: g.cx - g.intersection / 2, y: this.laneY(target) },
+                    { x: g.cx - g.exit, y: this.laneY(target) }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            southStraight(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: this.laneX(lane), y: g.cy + g.approach },
+                    { x: this.laneX(lane), y: g.cy + g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy - g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy - g.exit }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            southToWest(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: this.laneX(lane), y: g.cy + g.approach },
+                    { x: this.laneX(lane), y: g.cy + g.intersection / 2 },
+                    { x: g.cx - g.intersection / 4, y: g.cy + g.intersection / 4 },
+                    { x: g.cx - g.intersection / 2, y: this.laneY(target) },
+                    { x: g.cx - g.exit, y: this.laneY(target) }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            southToEast(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: this.laneX(lane), y: g.cy + g.approach },
+                    { x: this.laneX(lane), y: g.cy + g.intersection / 2 },
+                    { x: g.cx + g.intersection / 4, y: g.cy + g.intersection / 4 },
+                    { x: g.cx + g.intersection / 2, y: this.laneY(target) },
+                    { x: g.cx + g.exit, y: this.laneY(target) }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            eastStraight(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: g.cx + g.approach, y: this.laneY(lane) },
+                    { x: g.cx + g.intersection / 2, y: this.laneY(lane) },
+                    { x: g.cx - g.intersection / 2, y: this.laneY(target) },
+                    { x: g.cx - g.exit, y: this.laneY(target) }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            eastToNorth(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: g.cx + g.approach, y: this.laneY(lane) },
+                    { x: g.cx + g.intersection / 2, y: this.laneY(lane) },
+                    { x: g.cx + g.intersection / 4, y: g.cy - g.intersection / 4 },
+                    { x: this.laneX(target), y: g.cy - g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy - g.exit }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            eastToSouth(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: g.cx + g.approach, y: this.laneY(lane) },
+                    { x: g.cx + g.intersection / 2, y: this.laneY(lane) },
+                    { x: g.cx + g.intersection / 4, y: g.cy + g.intersection / 4 },
+                    { x: this.laneX(target), y: g.cy + g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy + g.exit }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            westStraight(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: g.cx - g.approach, y: this.laneY(lane) },
+                    { x: g.cx - g.intersection / 2, y: this.laneY(lane) },
+                    { x: g.cx + g.intersection / 2, y: this.laneY(target) },
+                    { x: g.cx + g.exit, y: this.laneY(target) }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            westToNorth(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: g.cx - g.approach, y: this.laneY(lane) },
+                    { x: g.cx - g.intersection / 2, y: this.laneY(lane) },
+                    { x: g.cx - g.intersection / 4, y: g.cy - g.intersection / 4 },
+                    { x: this.laneX(target), y: g.cy - g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy - g.exit }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            westToSouth(lane, target) {
+                const g = this.geometry;
+                const pts = [
+                    { x: g.cx - g.approach, y: this.laneY(lane) },
+                    { x: g.cx - g.intersection / 2, y: this.laneY(lane) },
+                    { x: g.cx - g.intersection / 4, y: g.cy + g.intersection / 4 },
+                    { x: this.laneX(target), y: g.cy + g.intersection / 2 },
+                    { x: this.laneX(target), y: g.cy + g.exit }
+                ];
+                return this.pathWithStop(pts, 1);
+            }
+
+            buildLanes() {
+                const configs = [
+                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS main'], color: '#fbbf24' },
+                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS main'], color: '#fbbf24' },
+                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS turns'], color: '#f97316' },
+                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS turns'], color: '#f97316' },
+                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS main'], color: '#fbbf24' },
+                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS main'], color: '#fbbf24' },
+                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW main'], color: '#4ade80' },
+                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW main'], color: '#4ade80' },
+                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW turns'], color: '#22d3ee' },
+                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW turns'], color: '#22d3ee' },
+                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW main'], color: '#4ade80' },
+                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW main'], color: '#4ade80' }
+                ];
+                return configs.map(cfg => {
+                    const built = cfg.builder();
+                    return new Lane({
+                        id: cfg.id,
+                        path: built.path,
+                        stopDistance: built.stopDistance,
+                        greenPhases: cfg.greens,
+                        color: cfg.color
+                    }, this);
+                });
+            }
+
+            updateDerived() {
+                this.A = this.params.A;
+                this.T = this.params.T;
+                this.lambdaPerApproach = this.params.lambda;
+                this.delaySteps = Math.max(1, Math.round(this.T / this.dt));
+                this.vehicleParams.historyLength = this.delaySteps * 3;
+                this.tRoll = this.T + CONST.V_MIN / (this.A * this.vFree);
+                this.headway = this.tRoll + CONST.TAU;
+                this.saturation = 3600 / this.headway;
+                this.arrivalRatePerLane = (this.lambdaPerApproach / 3) / 60; // veh/s per lane
+                UI.headway.textContent = this.headway.toFixed(2);
+                UI.saturation.textContent = this.saturation.toFixed(0);
+                updateHeadwayChart(charts.headway, this.A, this.params.T);
+                updateDelayChart(charts.delay, this);
+            }
+
+            poisson(lambda) {
+                const L = Math.exp(-lambda);
+                let k = 0;
+                let p = 1;
+                do {
+                    k++;
+                    p *= Math.random();
+                } while (p > L);
+                return k - 1;
+            }
+
+            spawnVehicles() {
+                for (const lane of this.lanes) {
+                    const arrivals = this.poisson(this.arrivalRatePerLane * lane.arrivalWeight * this.dt);
+                    lane.spawn(arrivals);
+                }
+            }
+
+            registerDeparture(car) {
+                this.stats.departed += 1;
+                this.stats.totalDelay += car.delay;
+            }
+
+            updatePhase() {
+                const phase = phasePlan[this.phaseIndex];
+                this.phaseTimer += this.dt;
+                if (this.phaseTimer >= phase.duration) {
+                    this.phaseIndex = (this.phaseIndex + 1) % phasePlan.length;
+                    this.phaseTimer = 0;
+                }
+                const current = phasePlan[this.phaseIndex];
+                for (const lane of this.lanes) {
+                    lane.handleSignal(current.name, this.time);
+                }
+                UI.phase.textContent = `${current.name} · ${this.phaseTimer.toFixed(1)} s`;
+                return current;
+            }
+
+            step() {
+                if (!this.running) return;
+                this.time += this.dt;
+                const currentPhase = this.updatePhase();
+                this.spawnVehicles();
+                for (const lane of this.lanes) {
+                    lane.updateVehicles(this.dt);
+                }
+                const queue = this.lanes.reduce((sum, lane) => sum + lane.queueLength(), 0);
+                this.stats.queue = queue;
+                const simHours = this.time / 3600;
+                this.stats.throughput = simHours > 0 ? this.stats.departed / simHours : 0;
+                UI.queue.textContent = queue.toFixed(0);
+                const avgDelay = this.stats.departed > 0 ? this.stats.totalDelay / this.stats.departed : 0;
+                UI.delay.textContent = avgDelay.toFixed(2);
+                UI.throughput.textContent = this.stats.throughput.toFixed(0);
+                UI.time.textContent = this.time.toFixed(1);
+                const theoretical = computeDelayValue(this);
+                UI.formulaDelay.textContent = Number.isFinite(theoretical) ? theoretical.toFixed(2) : '∞';
+            }
+
+            loop() {
+                this.step();
+                this.draw();
+                requestAnimationFrame(() => this.loop());
+            }
+
+            draw() {
+                const ctx = this.ctx;
+                ctx.clearRect(0, 0, CANVAS.width, CANVAS.height);
+                ctx.fillStyle = '#0b1120';
+                ctx.fillRect(0, 0, CANVAS.width, CANVAS.height);
+                this.drawRoad();
+                for (const lane of this.lanes) {
+                    this.drawVehicles(lane);
+                }
+            }
+
+            drawRoad() {
+                const ctx = this.ctx;
+                const g = this.geometry;
+                ctx.fillStyle = '#1f2937';
+                ctx.fillRect(g.cx - g.intersection * 1.1, 0, g.intersection * 2.2, CANVAS.height);
+                ctx.fillRect(0, g.cy - g.intersection * 1.1, CANVAS.width, g.intersection * 2.2);
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(g.cx - g.intersection / 2, g.cy - g.intersection / 2, g.intersection, g.intersection);
+            }
+
+            drawVehicles(lane) {
+                const ctx = this.ctx;
+                for (const car of lane.vehicles) {
+                    const pt = this.pointAlongPath(lane.path, car.distance);
+                    const heading = this.headingAlongPath(lane.path, car.distance);
+                    ctx.save();
+                    ctx.translate(pt.x, pt.y);
+                    ctx.rotate(Math.atan2(heading.y, heading.x));
+                    ctx.fillStyle = lane.isGreenNow ? lane.color : '#ef4444';
+                    ctx.fillRect(-CONST.VEHICLE_LENGTH / 2, -4, CONST.VEHICLE_LENGTH, 8);
+                    ctx.restore();
+                }
+            }
+
+            pointAlongPath(path, distance) {
+                const dist = Math.max(0, Math.min(distance, path.totalLength));
+                for (const seg of path.segments) {
+                    if (dist <= seg.startDist + seg.length) {
+                        const local = (dist - seg.startDist) / seg.length;
+                        return {
+                            x: seg.start.x + (seg.end.x - seg.start.x) * local,
+                            y: seg.start.y + (seg.end.y - seg.start.y) * local
+                        };
+                    }
+                }
+                const last = path.segments[path.segments.length - 1].end;
+                return { x: last.x, y: last.y };
+            }
+
+            headingAlongPath(path, distance) {
+                const dist = Math.max(0, Math.min(distance, path.totalLength - 1e-3));
+                for (const seg of path.segments) {
+                    if (dist <= seg.startDist + seg.length) {
+                        const dx = seg.end.x - seg.start.x;
+                        const dy = seg.end.y - seg.start.y;
+                        const len = Math.hypot(dx, dy) || 1;
+                        return { x: dx / len, y: dy / len };
+                    }
+                }
+                const last = path.segments[path.segments.length - 1];
+                const dx = last.end.x - last.start.x;
+                const dy = last.end.y - last.start.y;
+                const len = Math.hypot(dx, dy) || 1;
+                return { x: dx / len, y: dy / len };
+            }
+
+            reset() {
+                this.time = 0;
+                this.phaseIndex = 0;
+                this.phaseTimer = 0;
+                this.stats = { departed: 0, totalDelay: 0, queue: 0, throughput: 0 };
+                this.lanes = this.buildLanes();
+            }
+        }
+
+        const simulation = new Simulation();
+
+        UI.reaction.addEventListener('input', (e) => {
+            simulation.params.T = parseFloat(e.target.value);
+            UI.reactionValue.textContent = simulation.params.T.toFixed(1);
+            simulation.updateDerived();
+        });
+
+        UI.sensitivity.addEventListener('input', (e) => {
+            simulation.params.A = parseFloat(e.target.value);
+            UI.sensitivityValue.textContent = simulation.params.A.toFixed(1);
+            simulation.updateDerived();
+        });
+
+        UI.lambda.addEventListener('input', (e) => {
+            simulation.params.lambda = parseFloat(e.target.value);
+            UI.lambdaValue.textContent = simulation.params.lambda.toFixed(0);
+            simulation.updateDerived();
+        });
+
+        UI.pause.addEventListener('click', () => {
+            simulation.running = !simulation.running;
+            UI.pause.textContent = simulation.running ? 'Pause' : 'Resume';
+        });
+
+        UI.reset.addEventListener('click', () => {
+            simulation.reset();
+        });
+
+        function clamp(v, min, max) {
+            return Math.max(min, Math.min(max, v));
+        }
+
+        function computeHeadwayValue(T, A) {
+            return T + CONST.V_MIN / (A * CONST.V_FREE) + CONST.TAU;
+        }
+
+        function computeDelayValue(sim, lambdaOverride) {
+            const C = phasePlan.reduce((sum, p) => sum + p.duration, 0);
+            const g = 10;
+            const r = C - g;
+            const s = sim.saturation / 3600;
+            const lambdaApproach = lambdaOverride ?? sim.params.lambda;
+            const lambdaSec = (lambdaApproach / 3) / 60;
+            if (lambdaSec >= s) {
+                return Infinity;
+            }
+            return (r * r / (2 * C)) * (1 + lambdaSec / (s - lambdaSec));
+        }
+
+        function initCharts() {
+            const headwayCtx = document.getElementById('headway-chart').getContext('2d');
+            const delayCtx = document.getElementById('delay-chart').getContext('2d');
+            const headwayChart = new Chart(headwayCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Headway h(T)',
+                            data: [],
+                            borderColor: '#38bdf8',
+                            backgroundColor: 'rgba(56, 189, 248, 0.25)',
+                            fill: true,
+                            tension: 0.25
+                        },
+                        {
+                            type: 'scatter',
+                            label: 'Current T',
+                            data: [],
+                            borderColor: '#f97316',
+                            backgroundColor: '#f97316',
+                            pointRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                    scales: {
+                        x: { title: { text: 'Reaction delay T (s)', display: true, color: '#e2e8f0' }, ticks: { color: '#cbd5f5' } },
+                        y: { title: { text: 'Headway h (s)', display: true, color: '#e2e8f0' }, ticks: { color: '#cbd5f5' } }
+                    }
+                }
+            });
+
+            const delayChart = new Chart(delayCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Delay W(λ)',
+                            data: [],
+                            borderColor: '#22d3ee',
+                            backgroundColor: 'rgba(34, 211, 238, 0.25)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            type: 'scatter',
+                            label: 'Operating λ',
+                            data: [],
+                            borderColor: '#f43f5e',
+                            backgroundColor: '#f43f5e',
+                            pointRadius: 6
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { labels: { color: '#e2e8f0' } } },
+                    scales: {
+                        x: { title: { text: 'Arrival rate λ (veh/min/approach)', display: true, color: '#e2e8f0' }, ticks: { color: '#cbd5f5' } },
+                        y: { title: { text: 'Delay (s/veh)', display: true, color: '#e2e8f0' }, ticks: { color: '#cbd5f5' } }
+                    }
+                }
+            });
+
+            return { headway: headwayChart, delay: delayChart };
+        }
+
+        function updateHeadwayChart(chart, A, currentT) {
+            const labels = [];
+            const data = [];
+            for (let T = 0.5; T <= 2.5; T += 0.1) {
+                labels.push(T.toFixed(1));
+                data.push(computeHeadwayValue(T, A));
+            }
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.data.datasets[1].data = [{ x: currentT, y: computeHeadwayValue(currentT, A) }];
+            chart.update('none');
+        }
+
+        function updateDelayChart(chart, sim) {
+            const labels = [];
+            const data = [];
+            for (let lambda = 5; lambda <= 55; lambda += 2.5) {
+                labels.push(lambda.toFixed(1));
+                const value = computeDelayValue(sim, lambda);
+                data.push(Number.isFinite(value) ? value : null);
+            }
+            chart.data.labels = labels;
+            chart.data.datasets[0].data = data;
+            chart.data.datasets[1].data = [{ x: sim.params.lambda, y: computeDelayValue(sim) }];
+            chart.update('none');
+        }
+    });
+    </script>
 </body>
 </html>
-
