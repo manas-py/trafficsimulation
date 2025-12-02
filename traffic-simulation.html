@@ -89,6 +89,33 @@
             gap: 16px;
         }
 
+        .info-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+        }
+
+        .info-chip {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+
+        .info-chip label {
+            font-size: 0.8rem;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .info-chip .value-chip {
+            display: block;
+            margin-left: 0;
+            margin-top: 6px;
+            font-size: 1.2rem;
+        }
+
         label {
             display: flex;
             justify-content: space-between;
@@ -225,6 +252,16 @@
                         <input type="range" min="5" max="55" step="1" value="20" id="lambda-input">
                     </div>
                 </div>
+                <div class="info-metrics" style="margin-top: 8px;">
+                    <div class="info-chip">
+                        <label>Cycle length (s)</label>
+                        <span class="value-chip" id="cycle-length-value">30</span>
+                    </div>
+                    <div class="info-chip">
+                        <label>Total arrival (veh/min)</label>
+                        <span class="value-chip" id="incoming-flow-value">80</span>
+                    </div>
+                </div>
                 <div style="display:flex; gap:12px; margin-top:20px; flex-wrap: wrap;">
                     <button id="pause-btn">Pause</button>
                     <button class="secondary" id="reset-btn">Reset</button>
@@ -331,7 +368,9 @@
             throughput: document.getElementById('throughput-value'),
             headway: document.getElementById('headway-value'),
             saturation: document.getElementById('saturation-value'),
-            formulaDelay: document.getElementById('formula-delay')
+            formulaDelay: document.getElementById('formula-delay'),
+            cycleLengthValue: document.getElementById('cycle-length-value'),
+            incomingFlowValue: document.getElementById('incoming-flow-value')
         };
 
         const CONST = {
@@ -353,6 +392,8 @@
             { name: 'EW straight', duration: 10, greens: ['r1', 'r2', 'l2', 'l3'] },
             { name: 'EW turns', duration: 5, greens: ['r3', 'l1'] }
         ];
+
+        const cycleLengthSeconds = phasePlan.reduce((sum, phase) => sum + phase.duration, 0);
 
         const charts = initCharts();
 
@@ -528,6 +569,11 @@
                 };
                 this.lanes = this.buildLanes();
                 this.refreshLaneLookup();
+                this.cycleLength = cycleLengthSeconds;
+                if (UI.cycleLengthValue) {
+                    UI.cycleLengthValue.textContent = this.cycleLength.toFixed(0);
+                }
+                this.updateIncomingFlowDisplay();
                 this.updateDerived();
                 this.loop();
             }
@@ -773,8 +819,19 @@
                 this.saturation = 3600 / this.headway;
                 UI.headway.textContent = this.headway.toFixed(2);
                 UI.saturation.textContent = this.saturation.toFixed(0);
-                updateHeadwayChart(charts.headway, this.A, this.params.T);
-                updateDelayChart(charts.delay, this);
+                if (charts.headway) {
+                    updateHeadwayChart(charts.headway, this.A, this.params.T);
+                }
+                if (charts.delay) {
+                    updateDelayChart(charts.delay, this);
+                }
+            }
+
+            updateIncomingFlowDisplay() {
+                if (!UI.incomingFlowValue) return;
+                const approaches = Object.keys(this.approachMap || {}).length || 0;
+                const total = this.params.lambda * approaches;
+                UI.incomingFlowValue.textContent = total.toFixed(0);
             }
 
             poisson(lambda) {
@@ -1047,6 +1104,7 @@
                 this.stats = { departed: 0, totalDelay: 0, queue: 0, throughput: 0 };
                 this.lanes = this.buildLanes();
                 this.refreshLaneLookup();
+                this.updateIncomingFlowDisplay();
             }
         }
 
@@ -1068,6 +1126,7 @@
             simulation.params.lambda = parseFloat(e.target.value);
             UI.lambdaValue.textContent = simulation.params.lambda.toFixed(0);
             simulation.updateDerived();
+            simulation.updateIncomingFlowDisplay();
         });
 
         UI.pause.addEventListener('click', () => {
@@ -1120,8 +1179,16 @@
         }
 
         function initCharts() {
-            const headwayCtx = document.getElementById('headway-chart').getContext('2d');
-            const delayCtx = document.getElementById('delay-chart').getContext('2d');
+            if (typeof Chart === 'undefined') {
+                return { headway: null, delay: null };
+            }
+            const headwayCanvas = document.getElementById('headway-chart');
+            const delayCanvas = document.getElementById('delay-chart');
+            if (!headwayCanvas || !delayCanvas) {
+                return { headway: null, delay: null };
+            }
+            const headwayCtx = headwayCanvas.getContext('2d');
+            const delayCtx = delayCanvas.getContext('2d');
             const headwayChart = new Chart(headwayCtx, {
                 type: 'line',
                 data: {
@@ -1192,6 +1259,7 @@
         }
 
         function updateHeadwayChart(chart, A, currentT) {
+            if (!chart) return;
             const labels = [];
             const data = [];
             for (let T = 0.5; T <= 2.5; T += 0.1) {
@@ -1205,6 +1273,7 @@
         }
 
         function updateDelayChart(chart, sim) {
+            if (!chart) return;
             const labels = [];
             const data = [];
             for (let lambda = 5; lambda <= 55; lambda += 2.5) {
