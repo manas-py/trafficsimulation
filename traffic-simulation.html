@@ -480,10 +480,10 @@
                 for (let i = this.vehicles.length - 1; i >= 0; i--) {
                     const car = this.vehicles[i];
                     const leader = i === this.vehicles.length - 1 ? null : this.vehicles[i + 1];
-                    let allowed = this.path.totalLength - 1;
+                    let allowed = this.path.totalLength - this.sim.vehicleLength;
 
                     if (leader) {
-                        allowed = Math.min(allowed, leader.distance - this.sim.minGap);
+                        allowed = Math.min(allowed, leader.distance - (this.sim.vehicleLength + this.sim.minGap));
                     }
 
                     const isAheadOfStop = car.distance >= this.stopDistance - CONST.STOP_BUFFER;
@@ -574,7 +574,8 @@
                 this.vFree = parseFloat(UI.carSpeed?.value || CONST.V_FREE);
                 this.vehicleParams = { historyLength: 120 };
                 this.minGap = CONST.MIN_GAP;
-                this.minSpawnDistance = 14;
+                this.vehicleLength = CONST.VEHICLE_LENGTH;
+                this.minSpawnDistance = this.vehicleLength + this.minGap;
                 this.stats = {
                     departed: 0,
                     totalDelay: 0,
@@ -1101,10 +1102,11 @@
                     ctx.restore();
                 };
 
-                drawSignal(g.cx, g.cy - g.intersection / 2 - 50, nsGreen, 'N');
-                drawSignal(g.cx, g.cy + g.intersection / 2 + 50, nsGreen, 'S');
-                drawSignal(g.cx + g.intersection / 2 + 50, g.cy, ewGreen, 'E');
-                drawSignal(g.cx - g.intersection / 2 - 50, g.cy, ewGreen, 'W');
+                const offset = g.intersection / 2 + 25;
+                drawSignal(g.cx, g.cy - offset, nsGreen, 'N');
+                drawSignal(g.cx, g.cy + offset, nsGreen, 'S');
+                drawSignal(g.cx + offset, g.cy, ewGreen, 'E');
+                drawSignal(g.cx - offset, g.cy, ewGreen, 'W');
             }
 
             drawRoad() {
