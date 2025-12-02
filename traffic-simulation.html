@@ -247,7 +247,7 @@
 
             <div class="panel">
                 <h2>North–South / East–West Intersection</h2>
-                <canvas id="simCanvas" width="1024" height="720"></canvas>
+                <canvas id="simCanvas" width="1152" height="820"></canvas>
                 <div class="stats-grid" style="margin-top:16px;">
                     <div class="stat-card">
                         <span class="stat-label">Simulation time (s)</span>
@@ -255,7 +255,7 @@
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Phase / timer</span>
-                        <span class="stat-value" id="phase-label">NS green · 0.0 s</span>
+                        <span class="stat-value" id="phase-label">NS straight · 0.0 s</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Total queue (veh)</span>
@@ -304,7 +304,7 @@
         <section class="panel">
             <h2>Model & Cycle Summary</h2>
             <div class="notes">
-                <p>Cycle control follows a conventional two-phase sequence derived from the paper’s timing tables: north/south lanes (d1–d3, u1–u3) share a 14&nbsp;s green, then every approach observes a 2&nbsp;s “all red” clearance, east/west lanes (r1–r3, l1–l3) take their 14&nbsp;s green, and another clearance closes the loop. Poisson arrivals from Sec.&nbsp;4.1 are sampled once per approach and then randomly assigned to the lane-specific turn options according to their prevalence, ensuring the spatially random platoons illustrated in the manuscript.</p>
+                <p>Cycle control now matches the prescribed six-step plan exactly: 10&nbsp;s of north/south through service (d1, d2, u2, u3), 5&nbsp;s of protected north/south turns (d3, u1), 10&nbsp;s of east/west through service (r1, r2, l2, l3), and 5&nbsp;s of protected east/west turns (r3, l1). The sequence then repeats with no overlap between conflicting streams. Poisson arrivals from Sec.&nbsp;4.1 are sampled once per approach and randomly assigned to the lane-specific turn options according to their prevalence, reproducing the stochastic platoons documented in the manuscript.</p>
                 <p>The canvas draws the 12-lane geometry exactly as prescribed: three approach lanes per leg with explicit mapping to the downstream lanes (wr, er, wl, el, nu, su, nd, sd), textured asphalt, crosswalks, and stylized vehicles so the visuals match the reference figure while still highlighting signal permissions and queue growth governed by the microscopic driver-delay physics.</p>
             </div>
         </section>
@@ -348,10 +348,10 @@
         const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
 
         const phasePlan = [
-            { name: 'NS green', duration: 14, greens: ['d1', 'd2', 'd3', 'u1', 'u2', 'u3'] },
-            { name: 'All red', duration: 2, greens: [] },
-            { name: 'EW green', duration: 14, greens: ['r1', 'r2', 'r3', 'l1', 'l2', 'l3'] },
-            { name: 'All red', duration: 2, greens: [] }
+            { name: 'NS straight', duration: 10, greens: ['d1', 'd2', 'u2', 'u3'] },
+            { name: 'NS turns', duration: 5, greens: ['d3', 'u1'] },
+            { name: 'EW straight', duration: 10, greens: ['r1', 'r2', 'l2', 'l3'] },
+            { name: 'EW turns', duration: 5, greens: ['r3', 'l1'] }
         ];
 
         const charts = initCharts();
@@ -512,7 +512,7 @@
                 this.vFree = CONST.V_FREE;
                 this.vehicleParams = { historyLength: 120 };
                 this.minGap = CONST.MIN_GAP;
-                this.minSpawnDistance = 9;
+                this.minSpawnDistance = 14;
                 this.stats = {
                     departed: 0,
                     totalDelay: 0,
@@ -545,8 +545,8 @@
                 return {
                     cx,
                     cy,
-                    approach: 280,
-                    exit: 260,
+                    approach: 340,
+                    exit: 320,
                     intersection: 170,
                     lanePitch: 22
                 };
@@ -1066,8 +1066,10 @@
 
         function computeDelayValue(sim, lambdaOverride) {
             const C = phasePlan.reduce((sum, p) => sum + p.duration, 0);
-            const nsPhase = phasePlan.find(phase => phase.name === 'NS green');
-            const g = nsPhase ? nsPhase.duration : C / 2;
+            const nsMovements = new Set(['d1', 'd2', 'd3', 'u1', 'u2', 'u3']);
+            const g = phasePlan.reduce((sum, phase) => (
+                phase.greens.some(id => nsMovements.has(id)) ? sum + phase.duration : sum
+            ), 0);
             const r = C - g;
             const s = sim.saturation / 3600;
             const lambdaApproach = lambdaOverride ?? sim.params.lambda;
