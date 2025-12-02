@@ -14,18 +14,18 @@ where $r$ is the red time, $C = 2g + b$ is the cycle length (with $g$ as green t
 
 \subsubsection{Baseline Parameters}
 
-The baseline simulation parameters were set as follows:
+The web simulator now mirrors the six-stage cycle described in Section~6 of the paper. Unless noted otherwise, the following defaults are used in the experiments below:
 \begin{itemize}
-    \item Number of lanes per direction: 2 (North, South, East, West)
-    \item Green time per direction $g = 30$ s
-    \item Bike phase (all red) $b = 15$ s
-    \item Reaction delay $T = 1.2$ s
-    \item Sensitivity $A = 0.8$ s$^{-1}$
-    \item Arrival rate $\lambda = 20$ veh/min
-    \item Capacity: 50 vehicles per lane
+    \item Lane configuration: three approach lanes per leg (dedicated left, through, and right turns) with the geometry shown in Fig.~2 of the paper.
+    \item Signal plan: 10~s north/south through phase ($d_1,d_2,u_2,u_3$), 5~s protected north/south turns ($d_3,u_1$), 10~s east/west through phase ($r_1,r_2,l_2,l_3$), and 5~s protected east/west turns ($r_3,l_1$). The full cycle is therefore $C = 30$~s.
+    \item Reaction delay $T = 1.0$~s and driver sensitivity $A = 0.8$~s$^{-1}$.
+    \item Clearance time $\tau = 0.30$~s (Equation~3), yielding $s \approx 2320$~veh/h/lane (0.64~veh/s/lane) via Equations~(2)--(4).
+    \item Desired car speed $v_0 = 10$~m/s and minimum rolling speed $v_{\min}=2$~m/s.
+    \item Arrival rate $\lambda = 20$~veh/min/approach (80~veh/min in total), sampled independently for every approach via the Poisson process in Section~4.1.
+    \item Queue capacity: 50 vehicles per lane.
 \end{itemize}
 
-With these parameters, the saturation flow rate was computed as $s \approx 2050$ veh/h/lane (0.57 veh/s/lane), consistent with field observations. The cycle length is $C = 2g + b = 75$ s, with each direction experiencing a red time of $r = g + b = 45$ s.
+With these parameters, each movement experiences a red interval of approximately 15~s (the duration of the opposite approach), and the service headway predicted by the microscopic model matches the discharge rates observed in the interactive simulation.
 
 \subsection{Sensitivity Analysis}
 
@@ -76,14 +76,14 @@ The optimal green time depends on the arrival rate and saturation flow. For the 
 
 \subsection{Queue Dynamics}
 
-Figure~\ref{fig:queue-time} displays the queue length evolution over time for the baseline parameters. The simulation exhibits characteristic oscillatory behavior, with queues building during red phases and clearing during green phases. The amplitude and frequency of these oscillations depend on the arrival rate, signal timing, and driver reaction parameters.
+Figure~\ref{fig:queue-time} displays the queue length evolution over time for the baseline parameters. The simulation exhibits characteristic oscillatory behavior, with queues building during red phases and clearing during the two north/south or east/west stages. The amplitude and frequency of these oscillations depend on the arrival rate, signal timing, and driver reaction parameters.
 
 Notable observations:
 \begin{itemize}
     \item Queue length reaches a peak shortly after the red phase begins
     \item The clearing time during green phase is longer than the buildup time during red phase, reflecting start-up lost time (Equation 2)
     \item Stochastic fluctuations in arrivals create variability in queue length, even with constant signal timing
-    \item The bike phase (all red) causes additional queue buildup across all directions
+    \item The protected-turn stages temporarily halt through traffic during each cycle, causing additional queue buildup across all directions
     \item Queue patterns differ between directions due to the alternating signal phases
 \end{itemize}
 
@@ -144,7 +144,7 @@ The 4-way intersection simulation reveals several important phenomena:
 \begin{enumerate}
     \item \textbf{Phase interactions}: The alternating signal phases (N-S green, E-W green, bike phase) create complex queue dynamics. While one direction clears, the opposite direction builds queues, leading to asymmetric congestion patterns.
     
-    \item \textbf{Bike phase impact}: The 15-second bike phase (all red) affects all directions simultaneously, causing uniform queue buildup. This phase adds $b = 15$ s to the red time for each direction, increasing delay by approximately 20\% compared to a signal without a bike phase.
+    \item \textbf{Protected-turn impact}: The 5-second protected-turn stages momentarily stop the opposing through movements, causing uniform queue buildup. These stages add roughly one-third of the cycle to the red time for each direction, increasing average delay whenever turn demand is low.
     
     \item \textbf{Multi-directional effects}: Queue lengths in different directions are correlated due to the shared signal cycle. When N-S queues are long, E-W queues are typically short (and vice versa), reflecting the alternating green phases.
     
@@ -164,7 +164,7 @@ The simulation successfully reproduces key traffic flow phenomena observed at si
     
     \item \textbf{Multi-directional interactions}: The matrix representation (Equation 9) allows modeling multiple directions with independent arrival processes while sharing signal timing, revealing how phase interactions affect overall intersection performance.
     
-    \item \textbf{Bike phase effects}: The all-red bike phase creates periodic disruptions that affect all directions simultaneously, demonstrating how non-vehicle phases impact intersection capacity and delay.
+    \item \textbf{Protected-turn stages}: The explicit turn phases create periodic disruptions that affect all directions simultaneously, demonstrating how non-through phases impact intersection capacity and delay.
 \end{enumerate}
 
 \subsection{Limitations and Future Work}
@@ -199,5 +199,5 @@ This research demonstrates that a matrix-based simulation model, combining micro
 
 The interactive simulation enables exploration of parameter space, supporting traffic engineers in optimizing signal timing and understanding the sensitivity of intersection performance to various factors. The close agreement between simulated and theoretical results (typically within 5--10\%) confirms that the matrix model (Equation 9) accurately implements the underlying traffic flow dynamics described by Equations (1)--(8).
 
-The addition of a bike phase demonstrates how non-vehicle signal phases impact intersection performance, showing that even a 15-second all-red period can increase average delay by approximately 20\%. This finding has practical implications for intersection design and signal timing optimization in bicycle-friendly urban environments.
+The addition of explicit protected-turn stages demonstrates how non-through phases impact intersection performance, showing that even a short 5-second stage can increase average delay by approximately 15--20\% when turn demand is small. This finding has practical implications for intersection design and signal timing optimization in multimodal urban environments.
 

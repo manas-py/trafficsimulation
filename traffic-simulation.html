@@ -324,6 +324,21 @@
                 <p>The canvas draws the 12-lane geometry exactly as prescribed: three approach lanes per leg with explicit mapping to the downstream lanes (wr, er, wl, el, nu, su, nd, sd), textured asphalt, crosswalks, and stylized vehicles so the visuals match the reference figure while still highlighting signal permissions and queue growth governed by the microscopic driver-delay physics.</p>
             </div>
         </section>
+
+        <section class="panel">
+            <h2>Live Simulation Metrics</h2>
+            <div class="charts">
+                <div>
+                    <canvas id="live-queue-chart"></canvas>
+                </div>
+                <div>
+                    <canvas id="live-delay-chart"></canvas>
+                </div>
+                <div>
+                    <canvas id="live-throughput-chart"></canvas>
+                </div>
+            </div>
+        </section>
     </main>
 
     <script>
@@ -389,6 +404,7 @@
         }
 
         const charts = initCharts();
+        const liveCharts = initLiveCharts();
 
         class Vehicle {
             constructor(lane, distance, params) {
@@ -564,6 +580,12 @@
                     totalDelay: 0,
                     queue: 0,
                     throughput: 0
+                };
+                this.liveHistory = {
+                    time: [],
+                    queue: [],
+                    delay: [],
+                    throughput: []
                 };
                 this.geometry = this.buildGeometry();
                 this.approachMap = {
@@ -1002,6 +1024,18 @@
                 UI.time.textContent = this.time.toFixed(1);
                 const theoretical = computeDelayValue(this);
                 UI.formulaDelay.textContent = Number.isFinite(theoretical) ? theoretical.toFixed(2) : '∞';
+
+                this.liveHistory.time.push(this.time);
+                this.liveHistory.queue.push(queue);
+                this.liveHistory.delay.push(avgDelay);
+                this.liveHistory.throughput.push(this.stats.throughput);
+                const limit = 300;
+                ['time', 'queue', 'delay', 'throughput'].forEach(key => {
+                    if (this.liveHistory[key].length > limit) {
+                        this.liveHistory[key].shift();
+                    }
+                });
+                updateLiveCharts(liveCharts, this.liveHistory);
             }
 
             startLoop() {
@@ -1197,6 +1231,7 @@
                 this.phasePlan = buildPhasePlan(this.cycleScale);
                 this.activePhaseName = this.phasePlan[0].name;
                 this.stats = { departed: 0, totalDelay: 0, queue: 0, throughput: 0 };
+                this.liveHistory = { time: [], queue: [], delay: [], throughput: [] };
                 this.lanes = this.buildLanes();
                 this.refreshLaneLookup();
                 this.syncArrivalControls();
@@ -1376,6 +1411,55 @@
             return { headway: headwayChart, delay: delayChart };
         }
 
+        function initLiveCharts() {
+            if (typeof Chart === 'undefined') {
+                return { queue: null, delay: null, throughput: null };
+            }
+            const queueCanvas = document.getElementById('live-queue-chart');
+            const delayCanvas = document.getElementById('live-delay-chart');
+            const throughputCanvas = document.getElementById('live-throughput-chart');
+            if (!queueCanvas || !delayCanvas || !throughputCanvas) {
+                return { queue: null, delay: null, throughput: null };
+            }
+            const makeLineChart = (ctx, label, color, yLabel) => new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label,
+                        data: [],
+                        borderColor: color,
+                        backgroundColor: color.replace('1)', '0.15)'),
+                        tension: 0.2,
+                        fill: true,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    animation: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Time (s)', color: '#e2e8f0' },
+                            ticks: { color: '#cbd5f5' }
+                        },
+                        y: {
+                            title: { display: true, text: yLabel, color: '#e2e8f0' },
+                            ticks: { color: '#cbd5f5' }
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#e2e8f0' } }
+                    }
+                }
+            });
+            return {
+                queue: makeLineChart(queueCanvas.getContext('2d'), 'Total queue (veh)', 'rgba(248,113,113,1)', 'Vehicles'),
+                delay: makeLineChart(delayCanvas.getContext('2d'), 'Average delay (s)', 'rgba(34,197,94,1)', 'Seconds'),
+                throughput: makeLineChart(throughputCanvas.getContext('2d'), 'Throughput (veh/h)', 'rgba(59,130,246,1)', 'Vehicles per hour')
+            };
+        }
+
         function updateHeadwayChart(chart, A, currentT) {
             if (!chart) return;
             const labels = [];
@@ -1403,6 +1487,26 @@
             chart.data.datasets[0].data = data;
             chart.data.datasets[1].data = [{ x: sim.params.lambda, y: computeDelayValue(sim) }];
             chart.update('none');
+        }
+
+        function updateLiveCharts(charts, history) {
+            if (!charts) return;
+            const labels = history.time.map(t => t.toFixed(1));
+            if (charts.queue) {
+                charts.queue.data.labels = labels;
+                charts.queue.data.datasets[0].data = history.queue.slice();
+                charts.queue.update('none');
+            }
+            if (charts.delay) {
+                charts.delay.data.labels = labels;
+                charts.delay.data.datasets[0].data = history.delay.slice();
+                charts.delay.update('none');
+            }
+            if (charts.throughput) {
+                charts.throughput.data.labels = labels;
+                charts.throughput.data.datasets[0].data = history.throughput.slice();
+                charts.throughput.update('none');
+            }
         }
     });
     </script>
