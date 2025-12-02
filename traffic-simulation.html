@@ -737,18 +737,18 @@
 
             buildLanes() {
                 const configs = [
-                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 0.7 },
-                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 1.2 },
-                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS green'], color: '#f97316', arrivalWeight: 0.9 },
-                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS green'], color: '#f97316', arrivalWeight: 0.7 },
-                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 1.2 },
-                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 0.9 },
-                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 0.9 },
-                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 1.2 },
-                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW green'], color: '#22d3ee', arrivalWeight: 0.7 },
-                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW green'], color: '#22d3ee', arrivalWeight: 0.7 },
-                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 1.2 },
-                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 0.9 }
+                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.7 },
+                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
+                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS turns'], color: '#f97316', arrivalWeight: 0.9 },
+                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS turns'], color: '#f97316', arrivalWeight: 0.7 },
+                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
+                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.9 },
+                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 0.9 },
+                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 1.2 },
+                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW turns'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW turns'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 1.2 },
+                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 0.9 }
                 ];
                 return configs.map(cfg => {
                     const built = cfg.builder();
@@ -875,22 +875,45 @@
                 for (const lane of this.lanes) {
                     this.drawVehicles(lane);
                 }
-                if (this.activePhaseName === 'All red') {
-                    this.drawAllRedOverlay();
-                }
+                this.drawIntersectionSignals();
             }
 
-            drawAllRedOverlay() {
+            drawIntersectionSignals() {
                 const ctx = this.ctx;
                 const g = this.geometry;
-                ctx.fillStyle = 'rgba(248, 113, 113, 0.15)';
-                ctx.fillRect(g.cx - g.intersection / 2, g.cy - g.intersection / 2, g.intersection, g.intersection);
-                ctx.fillStyle = 'rgba(248, 113, 113, 0.8)';
-                ctx.font = 'bold 16px Inter, sans-serif';
-                ctx.textAlign = 'center';
-                ctx.fillText('ALL RED', g.cx, g.cy - 6);
-                ctx.font = '12px Inter, sans-serif';
-                ctx.fillText('clearing intersection', g.cx, g.cy + 12);
+                const nsPhases = new Set(['NS straight', 'NS turns']);
+                const ewPhases = new Set(['EW straight', 'EW turns']);
+                const nsGreen = nsPhases.has(this.activePhaseName);
+                const ewGreen = ewPhases.has(this.activePhaseName);
+
+                ctx.save();
+                ctx.translate(g.cx, g.cy);
+
+                ctx.fillStyle = '#374151';
+                ctx.fillRect(-4, -60, 8, 120);
+
+                const drawLamp = (offsetY, isGreen, label) => {
+                    ctx.save();
+                    ctx.translate(0, offsetY);
+                    ctx.fillStyle = '#111827';
+                    ctx.fillRect(-18, -12, 36, 24);
+                    const color = isGreen ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = color;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.font = '9px Inter, sans-serif';
+                    ctx.fillStyle = '#e5e7eb';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'top';
+                    ctx.fillText(label, 0, 10);
+                    ctx.restore();
+                };
+
+                drawLamp(-30, nsGreen, 'NS');
+                drawLamp(30, ewGreen, 'EW');
+
+                ctx.restore();
             }
 
             drawRoad() {
