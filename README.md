@@ -27,4 +27,4 @@ Because everything runs in the browser, you can pause, resume, or reset the mode
 
 ## License / Attribution
 
-Please cite the original MAT 471 project paper if you use this simulator or the accompanying analysis in academic work. The code is intentionally self-contained so it can be shared alongside the PDF without additional tooling.
+Ademi, Bardh, and Bhandari, Manas. "Traffic Model." 
