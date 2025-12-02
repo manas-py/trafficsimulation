@@ -560,11 +560,10 @@
                 };
                 this.lanes = this.buildLanes();
                 this.refreshLaneLookup();
-                this.cycleLength = cycleLengthSeconds;
+                this.cycleLength = BASE_CYCLE_LENGTH * this.cycleScale;
                 if (UI.cycleLengthValue) {
                     UI.cycleLengthValue.textContent = this.cycleLength.toFixed(0);
                 }
-                this.updateIncomingFlowDisplay();
                 this.syncArrivalControls();
                 this.updateDerived();
                 this.startLoop();
