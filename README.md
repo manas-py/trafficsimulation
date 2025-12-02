@@ -1,4 +1,5 @@
-# Signalized Intersection Simulation
+# Signalized Intersection Simulation for SJNY Math Undergraduate Final Project
+author(s): Bardh Ademi, Manas Bhandari
 
 This repository accompanies the paper *Modeling the Formation of Vehicle Congestion at a Signalized Intersection*. It contains three artefacts:
 
