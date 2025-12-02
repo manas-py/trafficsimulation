@@ -466,7 +466,8 @@
             spawn(arrivals) {
                 for (let i = 0; i < arrivals; i++) {
                     const head = this.vehicles.length > 0 ? this.vehicles[0] : null;
-                    if (head && head.distance < this.sim.minSpawnDistance) break;
+                const spacing = this.sim.vehicleLength + this.sim.minGap;
+                if (head && head.distance < spacing) break;
                     const vehicle = new Vehicle(this, 0, this.sim.vehicleParams);
                     this.vehicles.unshift(vehicle);
                 }
@@ -480,10 +481,11 @@
                 for (let i = this.vehicles.length - 1; i >= 0; i--) {
                     const car = this.vehicles[i];
                     const leader = i === this.vehicles.length - 1 ? null : this.vehicles[i + 1];
-                    let allowed = this.path.totalLength - this.sim.vehicleLength;
+                let allowed = this.path.totalLength;
 
                     if (leader) {
-                        allowed = Math.min(allowed, leader.distance - (this.sim.vehicleLength + this.sim.minGap));
+                    const spacing = this.sim.vehicleLength + this.sim.minGap;
+                    allowed = Math.min(allowed, leader.distance - spacing);
                     }
 
                     const isAheadOfStop = car.distance >= this.stopDistance - CONST.STOP_BUFFER;
