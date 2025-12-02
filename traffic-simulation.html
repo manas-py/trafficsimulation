@@ -233,8 +233,8 @@
                         <input type="range" id="cycle-scale" min="0.5" max="2" step="0.1" value="1">
                     </div>
                     <div>
-                        <label for="speed-multiplier">Car speed multiplier<span class="value-chip" id="speed-multiplier-value">1.0×</span></label>
-                        <input type="range" id="speed-multiplier" min="0.5" max="2.0" step="0.1" value="1">
+                        <label for="car-speed">Car speed (m/s)<span class="value-chip" id="car-speed-value">10 m/s</span></label>
+                        <input type="range" id="car-speed" min="5" max="25" step="1" value="10">
                     </div>
                     <div>
                         <label for="animation-speed">Animation speed<span class="value-chip" id="animation-speed-value">1×</span></label>
@@ -341,8 +341,8 @@
             totalArrivals: document.getElementById('total-arrivals'),
             totalArrivalsValue: document.getElementById('total-arrivals-value'),
             cycleScale: document.getElementById('cycle-scale'),
-            speedMultiplier: document.getElementById('speed-multiplier'),
-            speedMultiplierValue: document.getElementById('speed-multiplier-value'),
+            carSpeed: document.getElementById('car-speed'),
+            carSpeedValue: document.getElementById('car-speed-value'),
             animationSpeed: document.getElementById('animation-speed'),
             animationSpeedValue: document.getElementById('animation-speed-value'),
             pause: document.getElementById('pause-btn'),
@@ -483,7 +483,7 @@
                         }
                     }
 
-                    const freeSpeed = this.sim.vFree * this.sim.speedMultiplier;
+                    const freeSpeed = this.sim.vFree;
                     let leaderSpeed = leader ? leader.delayedSpeed(delaySteps) : freeSpeed;
                     if (allowed - car.distance <= 0.1) {
                         leaderSpeed = 0;
@@ -538,8 +538,7 @@
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
                 this.cycleScale = 1;
-                this.speedMultiplier = 1;
-                this.animationSpeed = 1;
+                this.animationSpeed = parseFloat(UI.animationSpeed?.value || 1);
                 this.phasePlan = buildPhasePlan(this.cycleScale);
                 this.cycleLength = BASE_CYCLE_LENGTH * this.cycleScale;
                 this.activePhaseName = this.phasePlan[0].name;
@@ -556,7 +555,7 @@
                     A: parseFloat(UI.sensitivity.value),
                     lambda: parseFloat(UI.lambda.value)
                 };
-                this.vFree = CONST.V_FREE;
+                this.vFree = parseFloat(UI.carSpeed?.value || CONST.V_FREE);
                 this.vehicleParams = { historyLength: 120 };
                 this.minGap = CONST.MIN_GAP;
                 this.minSpawnDistance = 14;
@@ -858,11 +857,11 @@
             }
 
             syncSpeedControls() {
-                if (UI.speedMultiplier) {
-                    UI.speedMultiplier.value = this.speedMultiplier;
+                if (UI.carSpeed) {
+                    UI.carSpeed.value = this.vFree;
                 }
-                if (UI.speedMultiplierValue) {
-                    UI.speedMultiplierValue.textContent = `${this.speedMultiplier.toFixed(1)}×`;
+                if (UI.carSpeedValue) {
+                    UI.carSpeedValue.textContent = `${this.vFree.toFixed(0)} m/s`;
                 }
                 if (UI.animationSpeed) {
                     UI.animationSpeed.value = this.animationSpeed;
@@ -870,19 +869,6 @@
                 if (UI.animationSpeedValue) {
                     UI.animationSpeedValue.textContent = `${this.animationSpeed.toFixed(0)}×`;
                 }
-            }
-
-            setPerApproachArrival(value) {
-                this.params.lambda = value;
-                this.syncArrivalControls();
-                this.updateDerived();
-            }
-
-            setTotalArrival(total) {
-                const perApproach = total / this.getApproachCount();
-                this.params.lambda = perApproach;
-                this.syncArrivalControls();
-                this.updateDerived();
             }
 
             setPerApproachArrival(value) {
@@ -921,14 +907,18 @@
                 this.phaseTimer = progress * this.phasePlan[this.phaseIndex].duration;
             }
 
-            setSpeedMultiplier(value) {
-                this.speedMultiplier = value;
+            setCarSpeed(value) {
+                this.vFree = value;
                 this.syncSpeedControls();
             }
 
             setAnimationSpeed(value) {
                 this.animationSpeed = value;
                 this.syncSpeedControls();
+                if (this.running && this.loopHandle) {
+                    clearTimeout(this.loopHandle);
+                    this.scheduleNextFrame();
+                }
             }
 
             poisson(lambda) {
@@ -1210,6 +1200,7 @@
                 this.lanes = this.buildLanes();
                 this.refreshLaneLookup();
                 this.syncArrivalControls();
+                this.syncSpeedControls();
                 if (wasRunning) {
                     this.startLoop();
                 }
@@ -1242,8 +1233,8 @@
             simulation.setCycleScale(parseFloat(e.target.value));
         });
 
-        UI.speedMultiplier.addEventListener('input', (e) => {
-            simulation.setSpeedMultiplier(parseFloat(e.target.value));
+        UI.carSpeed.addEventListener('input', (e) => {
+            simulation.setCarSpeed(parseFloat(e.target.value));
         });
 
         UI.animationSpeed.addEventListener('input', (e) => {
