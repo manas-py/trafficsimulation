@@ -1083,16 +1083,17 @@
                 const nsGreen = nsPhases.has(this.activePhaseName);
                 const ewGreen = ewPhases.has(this.activePhaseName);
 
-                const drawSignal = (x, y, isGreen, label) => {
+                const drawSignal = (x, y, rotation, isGreen, label) => {
                     ctx.save();
                     ctx.translate(x, y);
+                    ctx.rotate(rotation);
                     ctx.fillStyle = '#475569';
-                    ctx.fillRect(-2, -24, 4, 24);
+                    ctx.fillRect(-2, -20, 4, 40);
                     ctx.fillStyle = '#0f172a';
-                    ctx.fillRect(-18, -16, 36, 24);
+                    ctx.fillRect(-16, -14, 32, 20);
                     ctx.fillStyle = isGreen ? '#22c55e' : '#ef4444';
                     ctx.beginPath();
-                    ctx.arc(0, -4, 8, 0, Math.PI * 2);
+                    ctx.arc(0, -2, 7, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.font = '9px Inter, sans-serif';
                     ctx.fillStyle = '#e2e8f0';
@@ -1102,11 +1103,11 @@
                     ctx.restore();
                 };
 
-                const offset = g.intersection / 2 + 25;
-                drawSignal(g.cx, g.cy - offset, nsGreen, 'N');
-                drawSignal(g.cx, g.cy + offset, nsGreen, 'S');
-                drawSignal(g.cx + offset, g.cy, ewGreen, 'E');
-                drawSignal(g.cx - offset, g.cy, ewGreen, 'W');
+                const hub = g.intersection / 6;
+                drawSignal(g.cx, g.cy - hub, 0, nsGreen, 'N');
+                drawSignal(g.cx, g.cy + hub, Math.PI, nsGreen, 'S');
+                drawSignal(g.cx + hub, g.cy, Math.PI / 2, ewGreen, 'E');
+                drawSignal(g.cx - hub, g.cy, -Math.PI / 2, ewGreen, 'W');
             }
 
             drawRoad() {
