@@ -89,33 +89,6 @@
             gap: 16px;
         }
 
-        .info-metrics {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-        }
-
-        .info-chip {
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(148, 163, 184, 0.2);
-            border-radius: 12px;
-            padding: 10px 12px;
-        }
-
-        .info-chip label {
-            font-size: 0.8rem;
-            color: var(--muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .info-chip .value-chip {
-            display: block;
-            margin-left: 0;
-            margin-top: 6px;
-            font-size: 1.2rem;
-        }
-
         label {
             display: flex;
             justify-content: space-between;
@@ -251,15 +224,13 @@
                         <label for="lambda-input">Arrival rate λ (veh/min/approach)<span class="value-chip" id="lambda-value">20</span></label>
                         <input type="range" min="5" max="55" step="1" value="20" id="lambda-input">
                     </div>
-                </div>
-                <div class="info-metrics" style="margin-top: 8px;">
-                    <div class="info-chip">
-                        <label>Cycle length (s)</label>
-                        <span class="value-chip" id="cycle-length-value">30</span>
+                    <div>
+                        <label for="total-arrivals">Total arrivals (veh/min)<span class="value-chip" id="total-arrivals-value">80</span></label>
+                        <input type="range" id="total-arrivals" min="20" max="240" step="5" value="80">
                     </div>
-                    <div class="info-chip">
-                        <label>Total arrival (veh/min)</label>
-                        <span class="value-chip" id="incoming-flow-value">80</span>
+                    <div>
+                        <label for="cycle-scale">Cycle length (s)<span class="value-chip" id="cycle-length-value">30</span></label>
+                        <input type="range" id="cycle-scale" min="0.5" max="2" step="0.1" value="1">
                     </div>
                 </div>
                 <div style="display:flex; gap:12px; margin-top:20px; flex-wrap: wrap;">
@@ -359,6 +330,9 @@
             sensitivityValue: document.getElementById('sensitivity-value'),
             lambda: document.getElementById('lambda-input'),
             lambdaValue: document.getElementById('lambda-value'),
+            totalArrivals: document.getElementById('total-arrivals'),
+            totalArrivalsValue: document.getElementById('total-arrivals-value'),
+            cycleScale: document.getElementById('cycle-scale'),
             pause: document.getElementById('pause-btn'),
             reset: document.getElementById('reset-btn'),
             time: document.getElementById('sim-time'),
@@ -369,8 +343,7 @@
             headway: document.getElementById('headway-value'),
             saturation: document.getElementById('saturation-value'),
             formulaDelay: document.getElementById('formula-delay'),
-            cycleLengthValue: document.getElementById('cycle-length-value'),
-            incomingFlowValue: document.getElementById('incoming-flow-value')
+            cycleLengthValue: document.getElementById('cycle-length-value')
         };
 
         const CONST = {
@@ -386,14 +359,22 @@
 
         const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
 
-        const phasePlan = [
+        const BASE_PHASES = [
             { name: 'NS straight', duration: 10, greens: ['d1', 'd2', 'u2', 'u3'] },
             { name: 'NS turns', duration: 5, greens: ['d3', 'u1'] },
             { name: 'EW straight', duration: 10, greens: ['r1', 'r2', 'l2', 'l3'] },
             { name: 'EW turns', duration: 5, greens: ['r3', 'l1'] }
         ];
 
-        const cycleLengthSeconds = phasePlan.reduce((sum, phase) => sum + phase.duration, 0);
+        const BASE_CYCLE_LENGTH = BASE_PHASES.reduce((sum, phase) => sum + phase.duration, 0);
+
+        function buildPhasePlan(scale = 1) {
+            return BASE_PHASES.map(phase => ({
+                name: phase.name,
+                duration: phase.duration * scale,
+                greens: [...phase.greens]
+            }));
+        }
 
         const charts = initCharts();
 
@@ -543,8 +524,18 @@
                 this.dt = CONST.DT;
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
-                this.activePhaseName = phasePlan[0].name;
-                this.running = true;
+                this.cycleScale = 1;
+                this.phasePlan = buildPhasePlan(this.cycleScale);
+                this.cycleLength = BASE_CYCLE_LENGTH * this.cycleScale;
+                this.activePhaseName = this.phasePlan[0].name;
+                if (UI.cycleScale) {
+                    UI.cycleScale.value = this.cycleScale;
+                }
+                if (UI.cycleLengthValue) {
+                    UI.cycleLengthValue.textContent = this.cycleLength.toFixed(0);
+                }
+                this.running = false;
+                this.loopHandle = null;
                 this.params = {
                     T: parseFloat(UI.reaction.value),
                     A: parseFloat(UI.sensitivity.value),
@@ -574,8 +565,9 @@
                     UI.cycleLengthValue.textContent = this.cycleLength.toFixed(0);
                 }
                 this.updateIncomingFlowDisplay();
+                this.syncArrivalControls();
                 this.updateDerived();
-                this.loop();
+                this.startLoop();
             }
 
             refreshLaneLookup() {
@@ -811,7 +803,6 @@
             updateDerived() {
                 this.A = this.params.A;
                 this.T = this.params.T;
-                this.lambdaPerApproach = this.params.lambda;
                 this.delaySteps = Math.max(1, Math.round(this.T / this.dt));
                 this.vehicleParams.historyLength = this.delaySteps * 3;
                 this.tRoll = this.T + CONST.V_MIN / (this.A * this.vFree);
@@ -827,11 +818,64 @@
                 }
             }
 
-            updateIncomingFlowDisplay() {
-                if (!UI.incomingFlowValue) return;
-                const approaches = Object.keys(this.approachMap || {}).length || 0;
-                const total = this.params.lambda * approaches;
-                UI.incomingFlowValue.textContent = total.toFixed(0);
+            getApproachCount() {
+                return Object.keys(this.approachMap || {}).length || 1;
+            }
+
+            getTotalArrivalRate() {
+                return this.params.lambda * this.getApproachCount();
+            }
+
+            syncArrivalControls() {
+                const total = this.getTotalArrivalRate();
+                if (UI.lambda) {
+                    UI.lambda.value = this.params.lambda;
+                }
+                if (UI.lambdaValue) {
+                    UI.lambdaValue.textContent = this.params.lambda.toFixed(0);
+                }
+                if (UI.totalArrivals) {
+                    UI.totalArrivals.value = total;
+                }
+                if (UI.totalArrivalsValue) {
+                    UI.totalArrivalsValue.textContent = total.toFixed(0);
+                }
+            }
+
+            setPerApproachArrival(value) {
+                this.params.lambda = value;
+                this.syncArrivalControls();
+                this.updateDerived();
+            }
+
+            setTotalArrival(total) {
+                const perApproach = total / this.getApproachCount();
+                this.params.lambda = perApproach;
+                this.syncArrivalControls();
+                this.updateDerived();
+            }
+
+            setCycleScale(scale) {
+                this.cycleScale = scale;
+                const currentPhase = this.phasePlan[this.phaseIndex];
+                const currentName = currentPhase ? currentPhase.name : null;
+                const progress = currentPhase && currentPhase.duration > 0
+                    ? this.phaseTimer / currentPhase.duration
+                    : 0;
+                this.phasePlan = buildPhasePlan(scale);
+                this.cycleLength = BASE_CYCLE_LENGTH * scale;
+                if (UI.cycleScale) {
+                    UI.cycleScale.value = scale;
+                }
+                if (UI.cycleLengthValue) {
+                    UI.cycleLengthValue.textContent = this.cycleLength.toFixed(0);
+                }
+                let newIndex = currentName
+                    ? this.phasePlan.findIndex(phase => phase.name === currentName)
+                    : 0;
+                if (newIndex < 0) newIndex = 0;
+                this.phaseIndex = newIndex;
+                this.phaseTimer = progress * this.phasePlan[this.phaseIndex].duration;
             }
 
             poisson(lambda) {
@@ -881,13 +925,13 @@
             }
 
             updatePhase() {
-                const phase = phasePlan[this.phaseIndex];
+                const phase = this.phasePlan[this.phaseIndex];
                 this.phaseTimer += this.dt;
                 if (this.phaseTimer >= phase.duration) {
-                    this.phaseIndex = (this.phaseIndex + 1) % phasePlan.length;
+                    this.phaseIndex = (this.phaseIndex + 1) % this.phasePlan.length;
                     this.phaseTimer = 0;
                 }
-                const current = phasePlan[this.phaseIndex];
+                const current = this.phasePlan[this.phaseIndex];
                 this.activePhaseName = current.name;
                 for (const lane of this.lanes) {
                     lane.handleSignal(current.name, this.time);
@@ -917,10 +961,27 @@
                 UI.formulaDelay.textContent = Number.isFinite(theoretical) ? theoretical.toFixed(2) : '∞';
             }
 
-            loop() {
-                this.step();
-                this.draw();
-                requestAnimationFrame(() => this.loop());
+            startLoop() {
+                if (this.running) return;
+                this.running = true;
+                this.scheduleNextFrame();
+            }
+
+            scheduleNextFrame() {
+                if (!this.running) return;
+                this.loopHandle = setTimeout(() => {
+                    this.step();
+                    this.draw();
+                    this.scheduleNextFrame();
+                }, this.dt * 1000);
+            }
+
+            stopLoop() {
+                if (this.loopHandle) {
+                    clearTimeout(this.loopHandle);
+                    this.loopHandle = null;
+                }
+                this.running = false;
             }
 
             draw() {
@@ -943,34 +1004,29 @@
                 const nsGreen = nsPhases.has(this.activePhaseName);
                 const ewGreen = ewPhases.has(this.activePhaseName);
 
-                ctx.save();
-                ctx.translate(g.cx, g.cy);
-
-                ctx.fillStyle = '#374151';
-                ctx.fillRect(-4, -60, 8, 120);
-
-                const drawLamp = (offsetY, isGreen, label) => {
+                const drawSignal = (x, y, isGreen, label) => {
                     ctx.save();
-                    ctx.translate(0, offsetY);
-                    ctx.fillStyle = '#111827';
-                    ctx.fillRect(-18, -12, 36, 24);
-                    const color = isGreen ? '#22c55e' : '#ef4444';
-                    ctx.fillStyle = color;
+                    ctx.translate(x, y);
+                    ctx.fillStyle = '#475569';
+                    ctx.fillRect(-2, -24, 4, 24);
+                    ctx.fillStyle = '#0f172a';
+                    ctx.fillRect(-18, -16, 36, 24);
+                    ctx.fillStyle = isGreen ? '#22c55e' : '#ef4444';
                     ctx.beginPath();
-                    ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                    ctx.arc(0, -4, 8, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.font = '9px Inter, sans-serif';
-                    ctx.fillStyle = '#e5e7eb';
+                    ctx.fillStyle = '#e2e8f0';
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'top';
-                    ctx.fillText(label, 0, 10);
+                    ctx.fillText(label, 0, 6);
                     ctx.restore();
                 };
 
-                drawLamp(-30, nsGreen, 'NS');
-                drawLamp(30, ewGreen, 'EW');
-
-                ctx.restore();
+                drawSignal(g.cx, g.cy - g.intersection / 2 - 50, nsGreen, 'N');
+                drawSignal(g.cx, g.cy + g.intersection / 2 + 50, nsGreen, 'S');
+                drawSignal(g.cx + g.intersection / 2 + 50, g.cy, ewGreen, 'E');
+                drawSignal(g.cx - g.intersection / 2 - 50, g.cy, ewGreen, 'W');
             }
 
             drawRoad() {
@@ -1015,22 +1071,14 @@
                 }
                 ctx.setLineDash([]);
 
-                ctx.fillStyle = '#fef9c3';
-                const crosswalkDepth = 24;
-                const stripeWidth = 5;
-                const stripeSpacing = 12;
-                const crosswalkHorizontalStart = g.cx - g.intersection / 2 - crosswalkDepth;
-                const crosswalkVerticalStart = g.cy - g.intersection / 2 - crosswalkDepth;
-
-                for (let y = 0; y < crosswalkDepth; y += stripeSpacing) {
-                    ctx.fillRect(crosswalkHorizontalStart, g.cy - g.intersection / 2 - crosswalkDepth + y, g.intersection + crosswalkDepth * 2, stripeWidth);
-                    ctx.fillRect(crosswalkHorizontalStart, g.cy + g.intersection / 2 - y - stripeWidth, g.intersection + crosswalkDepth * 2, stripeWidth);
-                }
-
-                for (let x = 0; x < crosswalkDepth; x += stripeSpacing) {
-                    ctx.fillRect(g.cx - g.intersection / 2 - crosswalkDepth + x, crosswalkVerticalStart, stripeWidth, g.intersection + crosswalkDepth * 2);
-                    ctx.fillRect(g.cx + g.intersection / 2 - x - stripeWidth, crosswalkVerticalStart, stripeWidth, g.intersection + crosswalkDepth * 2);
-                }
+                const crosswalkDepth = 32;
+                const outerSize = g.intersection + crosswalkDepth * 2;
+                const innerSize = g.intersection + crosswalkDepth;
+                ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+                ctx.lineWidth = 4;
+                ctx.strokeRect(g.cx - outerSize / 2, g.cy - outerSize / 2, outerSize, outerSize);
+                ctx.lineWidth = 2;
+                ctx.strokeRect(g.cx - innerSize / 2, g.cy - innerSize / 2, innerSize, innerSize);
             }
 
             drawVehicles(lane) {
@@ -1097,14 +1145,20 @@
             }
 
             reset() {
+                const wasRunning = this.running;
+                this.stopLoop();
                 this.time = 0;
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
-                this.activePhaseName = phasePlan[0].name;
+                this.phasePlan = buildPhasePlan(this.cycleScale);
+                this.activePhaseName = this.phasePlan[0].name;
                 this.stats = { departed: 0, totalDelay: 0, queue: 0, throughput: 0 };
                 this.lanes = this.buildLanes();
                 this.refreshLaneLookup();
-                this.updateIncomingFlowDisplay();
+                this.syncArrivalControls();
+                if (wasRunning) {
+                    this.startLoop();
+                }
             }
         }
 
@@ -1122,16 +1176,32 @@
             simulation.updateDerived();
         });
 
-        UI.lambda.addEventListener('input', (e) => {
-            simulation.params.lambda = parseFloat(e.target.value);
-            UI.lambdaValue.textContent = simulation.params.lambda.toFixed(0);
-            simulation.updateDerived();
-            simulation.updateIncomingFlowDisplay();
-        });
+        if (UI.lambda) {
+            UI.lambda.addEventListener('input', (e) => {
+                simulation.setPerApproachArrival(parseFloat(e.target.value));
+            });
+        }
+
+        if (UI.totalArrivals) {
+            UI.totalArrivals.addEventListener('input', (e) => {
+                simulation.setTotalArrival(parseFloat(e.target.value));
+            });
+        }
+
+        if (UI.cycleScale) {
+            UI.cycleScale.addEventListener('input', (e) => {
+                simulation.setCycleScale(parseFloat(e.target.value));
+            });
+        }
 
         UI.pause.addEventListener('click', () => {
-            simulation.running = !simulation.running;
-            UI.pause.textContent = simulation.running ? 'Pause' : 'Resume';
+            if (simulation.running) {
+                simulation.stopLoop();
+                UI.pause.textContent = 'Resume';
+            } else {
+                simulation.startLoop();
+                UI.pause.textContent = 'Pause';
+            }
         });
 
         UI.reset.addEventListener('click', () => {
@@ -1147,9 +1217,10 @@
         }
 
         function computeDelayValue(sim, lambdaOverride) {
-            const C = phasePlan.reduce((sum, p) => sum + p.duration, 0);
+            const plan = sim?.phasePlan || buildPhasePlan(sim?.cycleScale || 1);
+            const C = plan.reduce((sum, p) => sum + p.duration, 0);
             const nsMovements = new Set(['d1', 'd2', 'd3', 'u1', 'u2', 'u3']);
-            const g = phasePlan.reduce((sum, phase) => (
+            const g = plan.reduce((sum, phase) => (
                 phase.greens.some(id => nsMovements.has(id)) ? sum + phase.duration : sum
             ), 0);
             const r = C - g;
