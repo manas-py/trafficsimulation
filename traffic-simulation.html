@@ -1019,17 +1019,17 @@
                 const crosswalkDepth = 24;
                 const stripeWidth = 5;
                 const stripeSpacing = 12;
-                const horizontalStart = g.cx - g.intersection / 2 - crosswalkDepth;
-                const verticalStart = g.cy - g.intersection / 2 - crosswalkDepth;
+                const crosswalkHorizontalStart = g.cx - g.intersection / 2 - crosswalkDepth;
+                const crosswalkVerticalStart = g.cy - g.intersection / 2 - crosswalkDepth;
 
                 for (let y = 0; y < crosswalkDepth; y += stripeSpacing) {
-                    ctx.fillRect(horizontalStart, g.cy - g.intersection / 2 - crosswalkDepth + y, g.intersection + crosswalkDepth * 2, stripeWidth);
-                    ctx.fillRect(horizontalStart, g.cy + g.intersection / 2 - y - stripeWidth, g.intersection + crosswalkDepth * 2, stripeWidth);
+                    ctx.fillRect(crosswalkHorizontalStart, g.cy - g.intersection / 2 - crosswalkDepth + y, g.intersection + crosswalkDepth * 2, stripeWidth);
+                    ctx.fillRect(crosswalkHorizontalStart, g.cy + g.intersection / 2 - y - stripeWidth, g.intersection + crosswalkDepth * 2, stripeWidth);
                 }
 
                 for (let x = 0; x < crosswalkDepth; x += stripeSpacing) {
-                    ctx.fillRect(g.cx - g.intersection / 2 - crosswalkDepth + x, verticalStart, stripeWidth, g.intersection + crosswalkDepth * 2);
-                    ctx.fillRect(g.cx + g.intersection / 2 - x - stripeWidth, verticalStart, stripeWidth, g.intersection + crosswalkDepth * 2);
+                    ctx.fillRect(g.cx - g.intersection / 2 - crosswalkDepth + x, crosswalkVerticalStart, stripeWidth, g.intersection + crosswalkDepth * 2);
+                    ctx.fillRect(g.cx + g.intersection / 2 - x - stripeWidth, crosswalkVerticalStart, stripeWidth, g.intersection + crosswalkDepth * 2);
                 }
             }
 
