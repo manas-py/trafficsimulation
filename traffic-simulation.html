@@ -232,6 +232,14 @@
                         <label for="cycle-scale">Cycle length (s)<span class="value-chip" id="cycle-length-value">30</span></label>
                         <input type="range" id="cycle-scale" min="0.5" max="2" step="0.1" value="1">
                     </div>
+                    <div>
+                        <label for="speed-multiplier">Car speed multiplier<span class="value-chip" id="speed-multiplier-value">1.0×</span></label>
+                        <input type="range" id="speed-multiplier" min="0.5" max="2.0" step="0.1" value="1">
+                    </div>
+                    <div>
+                        <label for="animation-speed">Animation speed<span class="value-chip" id="animation-speed-value">1×</span></label>
+                        <input type="range" id="animation-speed" min="1" max="2" step="1" value="1">
+                    </div>
                 </div>
                 <div style="display:flex; gap:12px; margin-top:20px; flex-wrap: wrap;">
                     <button id="pause-btn">Pause</button>
@@ -333,6 +341,10 @@
             totalArrivals: document.getElementById('total-arrivals'),
             totalArrivalsValue: document.getElementById('total-arrivals-value'),
             cycleScale: document.getElementById('cycle-scale'),
+            speedMultiplier: document.getElementById('speed-multiplier'),
+            speedMultiplierValue: document.getElementById('speed-multiplier-value'),
+            animationSpeed: document.getElementById('animation-speed'),
+            animationSpeedValue: document.getElementById('animation-speed-value'),
             pause: document.getElementById('pause-btn'),
             reset: document.getElementById('reset-btn'),
             time: document.getElementById('sim-time'),
@@ -471,13 +483,14 @@
                         }
                     }
 
-                    let leaderSpeed = leader ? leader.delayedSpeed(delaySteps) : this.sim.vFree;
+                    const freeSpeed = this.sim.vFree * this.sim.speedMultiplier;
+                    let leaderSpeed = leader ? leader.delayedSpeed(delaySteps) : freeSpeed;
                     if (allowed - car.distance <= 0.1) {
                         leaderSpeed = 0;
                     }
                     const followerSpeed = car.delayedSpeed(delaySteps);
                     const accel = this.sim.A * (leaderSpeed - followerSpeed);
-                    car.speed = clamp(car.speed + accel * dt, 0, this.sim.vFree);
+                    car.speed = clamp(car.speed + accel * dt, 0, freeSpeed);
                     car.distance = Math.min(car.distance + car.speed * dt, allowed);
 
                     if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
@@ -525,6 +538,8 @@
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
                 this.cycleScale = 1;
+                this.speedMultiplier = 1;
+                this.animationSpeed = 1;
                 this.phasePlan = buildPhasePlan(this.cycleScale);
                 this.cycleLength = BASE_CYCLE_LENGTH * this.cycleScale;
                 this.activePhaseName = this.phasePlan[0].name;
@@ -565,6 +580,7 @@
                     UI.cycleLengthValue.textContent = this.cycleLength.toFixed(0);
                 }
                 this.syncArrivalControls();
+                this.syncSpeedControls();
                 this.updateDerived();
                 this.startLoop();
             }
@@ -841,6 +857,34 @@
                 }
             }
 
+            syncSpeedControls() {
+                if (UI.speedMultiplier) {
+                    UI.speedMultiplier.value = this.speedMultiplier;
+                }
+                if (UI.speedMultiplierValue) {
+                    UI.speedMultiplierValue.textContent = `${this.speedMultiplier.toFixed(1)}×`;
+                }
+                if (UI.animationSpeed) {
+                    UI.animationSpeed.value = this.animationSpeed;
+                }
+                if (UI.animationSpeedValue) {
+                    UI.animationSpeedValue.textContent = `${this.animationSpeed.toFixed(0)}×`;
+                }
+            }
+
+            setPerApproachArrival(value) {
+                this.params.lambda = value;
+                this.syncArrivalControls();
+                this.updateDerived();
+            }
+
+            setTotalArrival(total) {
+                const perApproach = total / this.getApproachCount();
+                this.params.lambda = perApproach;
+                this.syncArrivalControls();
+                this.updateDerived();
+            }
+
             setPerApproachArrival(value) {
                 this.params.lambda = value;
                 this.syncArrivalControls();
@@ -875,6 +919,16 @@
                 if (newIndex < 0) newIndex = 0;
                 this.phaseIndex = newIndex;
                 this.phaseTimer = progress * this.phasePlan[this.phaseIndex].duration;
+            }
+
+            setSpeedMultiplier(value) {
+                this.speedMultiplier = value;
+                this.syncSpeedControls();
+            }
+
+            setAnimationSpeed(value) {
+                this.animationSpeed = value;
+                this.syncSpeedControls();
             }
 
             poisson(lambda) {
@@ -968,11 +1022,12 @@
 
             scheduleNextFrame() {
                 if (!this.running) return;
+                const interval = (this.dt / this.animationSpeed) * 1000;
                 this.loopHandle = setTimeout(() => {
                     this.step();
                     this.draw();
                     this.scheduleNextFrame();
-                }, this.dt * 1000);
+                }, interval);
             }
 
             stopLoop() {
@@ -1175,23 +1230,25 @@
             simulation.updateDerived();
         });
 
-        if (UI.lambda) {
-            UI.lambda.addEventListener('input', (e) => {
-                simulation.setPerApproachArrival(parseFloat(e.target.value));
-            });
-        }
+        UI.lambda.addEventListener('input', (e) => {
+            simulation.setPerApproachArrival(parseFloat(e.target.value));
+        });
 
-        if (UI.totalArrivals) {
-            UI.totalArrivals.addEventListener('input', (e) => {
-                simulation.setTotalArrival(parseFloat(e.target.value));
-            });
-        }
+        UI.totalArrivals.addEventListener('input', (e) => {
+            simulation.setTotalArrival(parseFloat(e.target.value));
+        });
 
-        if (UI.cycleScale) {
-            UI.cycleScale.addEventListener('input', (e) => {
-                simulation.setCycleScale(parseFloat(e.target.value));
-            });
-        }
+        UI.cycleScale.addEventListener('input', (e) => {
+            simulation.setCycleScale(parseFloat(e.target.value));
+        });
+
+        UI.speedMultiplier.addEventListener('input', (e) => {
+            simulation.setSpeedMultiplier(parseFloat(e.target.value));
+        });
+
+        UI.animationSpeed.addEventListener('input', (e) => {
+            simulation.setAnimationSpeed(parseFloat(e.target.value));
+        });
 
         UI.pause.addEventListener('click', () => {
             if (simulation.running) {
