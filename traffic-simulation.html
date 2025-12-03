@@ -417,6 +417,7 @@
             VEHICLE_LENGTH: 16,
             MIN_GAP: 7,
             STOP_BUFFER: 0.5,
+            QUEUE_FILL_SPEED: 1.4,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
@@ -532,14 +533,32 @@
                     const leader = i === this.vehicles.length - 1 ? null : this.vehicles[i + 1];
                     let allowed = this.path.totalLength - this.sim.vehicleLength * 0.25;
 
-                    if (leader) {
-                        const inTightZone = car.distance < tightReleaseDistance;
-                        const targetSpacing = (!this.isGreenNow || inTightZone) ? queuedSpacing : movingSpacing;
-                        allowed = Math.min(allowed, leader.distance - targetSpacing);
+                    if (!this.isGreenNow) {
+                        const targetStop = this.stopDistance - CONST.STOP_BUFFER;
+                        let target = targetStop;
+                        if (leader) {
+                            target = Math.min(target, leader.distance - queuedSpacing);
+                        }
+                        target = Math.min(target, allowed);
+                        const gap = target - car.distance;
+                        if (gap > 1e-3) {
+                            const advance = Math.min(this.sim.queueFillSpeed * dt, gap);
+                            car.distance += advance;
+                            car.speed = advance / dt;
+                        } else if (gap < -1e-3) {
+                            car.distance = Math.min(car.distance, target);
+                            car.speed = 0;
+                        } else {
+                            car.speed = 0;
+                        }
+                        car.recordSpeed();
+                        continue;
                     }
 
-                    if (!this.isGreenNow && car.distance < this.stopDistance) {
-                        allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
+                    if (leader) {
+                        const inTightZone = car.distance < tightReleaseDistance;
+                        const targetSpacing = inTightZone ? queuedSpacing : movingSpacing;
+                        allowed = Math.min(allowed, leader.distance - targetSpacing);
                     }
 
                     if (this.isGreenNow && !leader && car.distance < this.stopDistance) {
@@ -632,6 +651,7 @@
                 this.minGap = CONST.MIN_GAP;
                 this.vehicleLength = CONST.VEHICLE_LENGTH;
                 this.minSpawnDistance = this.vehicleLength + this.minGap;
+                this.queueFillSpeed = CONST.QUEUE_FILL_SPEED;
                 this.lastArrivalCount = 0;
                 this.stats = {
                     departed: 0,
