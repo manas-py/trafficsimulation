@@ -389,10 +389,10 @@
         const BASE_PHASES = [
             { name: 'NS straight', duration: 15, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
             { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-green' },
-            { name: 'NS left yellow', duration: 3, greens: ['d3', 'u1'], allowExistingOnly: ['d3', 'u1'], signal: 'ns-yellow' },
+            { name: 'NS yellow', duration: 3, greens: [], signal: 'ns-yellow' },
             { name: 'EW straight', duration: 15, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
             { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-green' },
-            { name: 'EW left yellow', duration: 3, greens: ['r3', 'l1'], allowExistingOnly: ['r3', 'l1'], signal: 'ew-yellow' }
+            { name: 'EW yellow', duration: 3, greens: [], signal: 'ew-yellow' }
         ];
 
         const BASE_CYCLE_LENGTH = BASE_PHASES.reduce((sum, phase) => sum + phase.duration, 0);
@@ -402,7 +402,6 @@
                 name: phase.name,
                 duration: phase.duration * scale,
                 greens: [...(phase.greens || [])],
-                allowExistingOnly: phase.allowExistingOnly ? [...phase.allowExistingOnly] : [],
                 signal: phase.signal || null
             }));
         }
@@ -452,10 +451,9 @@
                 this.wasGreen = false;
                 this.lastReleaseTime = -Infinity;
                 this.hasReleasedOnce = false;
-                this.allowNewEntries = false;
             }
 
-            handleSignal(phaseName, time, isGreen, allowExistingOnly) {
+            handleSignal(phaseName, time, isGreen) {
                 if (isGreen && !this.wasGreen) {
                     this.lastReleaseTime = time;
                     this.hasReleasedOnce = false;
@@ -465,7 +463,6 @@
                 }
                 this.wasGreen = isGreen;
                 this.isGreenNow = isGreen;
-                this.allowNewEntries = isGreen && !allowExistingOnly;
             }
 
             spawn(arrivals) {
@@ -516,7 +513,7 @@
                     car.speed = clamp(car.speed + accel * dt, 0, freeSpeed);
                     car.distance = Math.min(car.distance + car.speed * dt, allowed);
 
-                    if (!car.released && car.distance >= this.stopDistance && this.isGreenNow && this.allowNewEntries) {
+                    if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
                         this.lastReleaseTime = this.sim.time;
                         this.hasReleasedOnce = true;
                         car.released = true;
@@ -1011,11 +1008,9 @@
                 this.activePhaseName = current.name;
                 this.currentSignalState = current.signal || null;
                 const greenSet = new Set(current.greens || []);
-                const allowExisting = new Set(current.allowExistingOnly || []);
                 for (const lane of this.lanes) {
                     const isGreen = greenSet.has(lane.id);
-                    const allowExistingOnly = allowExisting.has(lane.id);
-                    lane.handleSignal(current.name, this.time, isGreen, allowExistingOnly);
+                    lane.handleSignal(current.name, this.time, isGreen);
                 }
                 UI.phase.textContent = `${current.name} · ${this.phaseTimer.toFixed(1)} s`;
                 return current;
