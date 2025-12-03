@@ -518,20 +518,31 @@
                 if (!this.vehicles.length) return;
                 this.vehicles.sort((a, b) => a.distance - b.distance);
                 const delaySteps = this.sim.delaySteps;
+                const spacing = this.sim.vehicleLength + this.sim.minGap;
 
                 for (let i = this.vehicles.length - 1; i >= 0; i--) {
                     const car = this.vehicles[i];
                     const leader = i === this.vehicles.length - 1 ? null : this.vehicles[i + 1];
-                let allowed = this.path.totalLength;
+                    let allowed = this.path.totalLength - this.sim.vehicleLength * 0.25;
 
                     if (leader) {
-                    const spacing = this.sim.vehicleLength + this.sim.minGap;
                     allowed = Math.min(allowed, leader.distance - spacing);
                     }
 
                     const isAheadOfStop = car.distance >= this.stopDistance - CONST.STOP_BUFFER;
                     if (!this.isGreenNow && car.distance < this.stopDistance) {
-                        allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
+                        const queueTarget = Math.min(allowed, this.stopDistance - this.sim.minGap);
+                        const gapToTarget = queueTarget - car.distance;
+                        if (gapToTarget > 1e-3) {
+                            const creepAdvance = Math.min(this.sim.queueCreepSpeed * dt, gapToTarget);
+                            car.distance += Math.max(0, creepAdvance);
+                            car.speed = creepAdvance / dt;
+                        } else {
+                            car.distance = Math.min(car.distance, queueTarget);
+                            car.speed = 0;
+                        }
+                        car.recordSpeed();
+                        continue;
                     }
 
                     if (this.isGreenNow && !leader && car.distance < this.stopDistance) {
@@ -555,6 +566,10 @@
                     if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
                         this.lastReleaseTime = this.sim.time;
                         this.hasReleasedOnce = true;
+                        if (!this.firstReleaseCaptured && typeof this.phaseGreenStartTime === 'number' && this.sim.sessionActive) {
+                            this.sim.recordStartUpTime(this.id, Math.max(0, this.sim.time - this.phaseGreenStartTime));
+                            this.firstReleaseCaptured = true;
+                        }
                         car.released = true;
                     }
 
@@ -656,6 +671,77 @@
                 this.syncSpeedControls();
                 this.updateDerived();
                 this.startLoop();
+            }
+
+            createSessionMetrics() {
+                const startup = {};
+                (this.laneOrder || ALL_LANES).forEach(id => {
+                    startup[id] = [];
+                });
+                return {
+                    startTime: this.time,
+                    times: [],
+                    queues: [],
+                    delays: [],
+                    throughput: [],
+                    sumDelay: 0,
+                    sumThroughput: 0,
+                    samples: 0,
+                    lambda: this.params.lambda,
+                    poissonBins: {},
+                    startup,
+                    lastSampleTime: this.time
+                };
+            }
+
+            beginSession() {
+                if (this.sessionActive) return;
+                this.sessionMetrics = this.createSessionMetrics();
+                this.sessionActive = true;
+                if (UI.sessionDuration) {
+                    UI.sessionDuration.textContent = '0 s';
+                }
+            }
+
+            pauseSession(cancelOnly = false) {
+                if (!this.sessionActive) {
+                    if (cancelOnly) {
+                        this.sessionMetrics = null;
+                        if (UI.sessionDuration) UI.sessionDuration.textContent = '0 s';
+                    }
+                    return;
+                }
+                this.sessionActive = false;
+                if (cancelOnly) {
+                    this.sessionMetrics = null;
+                    if (UI.sessionDuration) UI.sessionDuration.textContent = '0 s';
+                } else {
+                    this.finalizeSession();
+                }
+            }
+
+            finalizeSession() {
+                if (!this.sessionMetrics) return;
+                const metrics = this.sessionMetrics;
+                const duration = Math.max(0, this.time - metrics.startTime);
+                if (UI.sessionDuration) {
+                    UI.sessionDuration.textContent = `${duration.toFixed(1)} s`;
+                }
+                if (duration > 0) {
+                    const avgDelay = metrics.samples ? metrics.sumDelay / metrics.samples : 0;
+                    const avgThroughput = metrics.samples ? metrics.sumThroughput / metrics.samples : 0;
+                    this.updateAnalysisCharts({
+                        duration,
+                        queues: metrics.queues.slice(),
+                        times: metrics.times.slice(),
+                        poisson: { ...metrics.poissonBins },
+                        lostTimes: metrics.startup,
+                        avgDelay,
+                        avgThroughput,
+                        lambda: metrics.lambda
+                    });
+                }
+                this.sessionMetrics = null;
             }
 
             refreshLaneLookup() {
@@ -1008,10 +1094,11 @@
             }
 
             spawnVehicles() {
-                // Approach-level Poisson sampling (Sec. 4.1) with random lane allocation
                 const arrivalsPerApproach = (this.params.lambda / 60) * this.dt;
+                let tickArrivals = 0;
                 Object.values(this.approachMap).forEach(laneIds => {
                     const arrivals = this.poisson(arrivalsPerApproach);
+                    tickArrivals += arrivals;
                     if (!arrivals) return;
                     const allocation = new Map();
                     for (let i = 0; i < arrivals; i++) {
@@ -1022,6 +1109,10 @@
                         this.laneMap[laneId].spawn(count);
                     });
                 });
+                if (this.sessionActive && this.sessionMetrics) {
+                    const bin = Math.round(tickArrivals);
+                    this.sessionMetrics.poissonBins[bin] = (this.sessionMetrics.poissonBins[bin] || 0) + 1;
+                }
             }
 
             weightedLaneChoice(laneIds) {
@@ -1080,6 +1171,17 @@
                 UI.time.textContent = this.time.toFixed(1);
                 const theoretical = computeDelayValue(this);
                 UI.formulaDelay.textContent = Number.isFinite(theoretical) ? theoretical.toFixed(2) : '∞';
+                if (this.sessionActive && this.sessionMetrics) {
+                    const metrics = this.sessionMetrics;
+                    const elapsed = this.time - metrics.startTime;
+                    metrics.times.push(elapsed);
+                    metrics.queues.push(queue);
+                    metrics.delays.push(avgDelay);
+                    metrics.throughput.push(this.stats.throughput);
+                    metrics.sumDelay += avgDelay;
+                    metrics.sumThroughput += this.stats.throughput;
+                    metrics.samples += 1;
+                }
 
                 this.liveHistory.time.push(this.time);
                 this.liveHistory.queue.push(queue);
@@ -1096,6 +1198,7 @@
 
             startLoop() {
                 if (this.running) return;
+                this.beginSession();
                 this.running = true;
                 this.scheduleNextFrame();
             }
@@ -1288,7 +1391,10 @@
 
             reset() {
                 const wasRunning = this.running;
-                this.stopLoop();
+                if (wasRunning) {
+                    this.stopLoop();
+                }
+                this.pauseSession(true);
                 this.time = 0;
                 this.phaseIndex = 0;
                 this.phaseTimer = 0;
