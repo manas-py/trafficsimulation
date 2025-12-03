@@ -387,12 +387,14 @@
         const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
 
         const BASE_PHASES = [
-            { name: 'NS straight', duration: 15, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
+            { name: 'NS straight', duration: 12, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
+            { name: 'NS straight yellow', duration: 3, greens: [], signal: 'ns-straight-yellow' },
             { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-green' },
-            { name: 'NS yellow', duration: 3, greens: [], signal: 'ns-yellow' },
-            { name: 'EW straight', duration: 15, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
+            { name: 'NS left yellow', duration: 3, greens: [], signal: 'ns-left-yellow' },
+            { name: 'EW straight', duration: 12, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
+            { name: 'EW straight yellow', duration: 3, greens: [], signal: 'ew-straight-yellow' },
             { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-green' },
-            { name: 'EW yellow', duration: 3, greens: [], signal: 'ew-yellow' }
+            { name: 'EW left yellow', duration: 3, greens: [], signal: 'ew-left-yellow' }
         ];
 
         const BASE_CYCLE_LENGTH = BASE_PHASES.reduce((sum, phase) => sum + phase.duration, 0);
