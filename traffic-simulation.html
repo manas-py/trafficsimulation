@@ -700,12 +700,13 @@
 
             northToWest(lane, target) {
                 const g = this.geometry;
+                const turnX = g.cx - g.intersection / 2;
+                const turnY = this.laneY(target);
                 const pts = [
                     { x: this.laneX(lane), y: g.cy - g.approach },
                     { x: this.laneX(lane), y: g.cy - g.intersection / 2 },
-                    { x: g.cx - g.intersection / 4, y: g.cy - g.intersection / 4 },
-                    { x: g.cx - g.intersection / 2, y: this.laneY(target) },
-                    { x: g.cx - g.exit, y: this.laneY(target) }
+                    { x: turnX, y: turnY },
+                    { x: g.cx - g.exit, y: turnY }
                 ];
                 return this.pathWithStop(pts, 1);
             }
@@ -735,12 +736,13 @@
 
             southToEast(lane, target) {
                 const g = this.geometry;
+                const turnX = g.cx + g.intersection / 2;
+                const turnY = this.laneY(target);
                 const pts = [
                     { x: this.laneX(lane), y: g.cy + g.approach },
                     { x: this.laneX(lane), y: g.cy + g.intersection / 2 },
-                    { x: g.cx + g.intersection / 4, y: g.cy + g.intersection / 4 },
-                    { x: g.cx + g.intersection / 2, y: this.laneY(target) },
-                    { x: g.cx + g.exit, y: this.laneY(target) }
+                    { x: turnX, y: turnY },
+                    { x: g.cx + g.exit, y: turnY }
                 ];
                 return this.pathWithStop(pts, 1);
             }
@@ -758,12 +760,13 @@
 
             eastToNorth(lane, target) {
                 const g = this.geometry;
+                const turnY = g.cy - g.intersection / 2;
+                const turnX = this.laneX(target);
                 const pts = [
                     { x: g.cx + g.approach, y: this.laneY(lane) },
                     { x: g.cx + g.intersection / 2, y: this.laneY(lane) },
-                    { x: g.cx + g.intersection / 4, y: g.cy - g.intersection / 4 },
-                    { x: this.laneX(target), y: g.cy - g.intersection / 2 },
-                    { x: this.laneX(target), y: g.cy - g.exit }
+                    { x: turnX, y: turnY },
+                    { x: turnX, y: g.cy - g.exit }
                 ];
                 return this.pathWithStop(pts, 1);
             }
@@ -804,13 +807,14 @@
             }
 
             westToSouth(lane, target) {
-                const g = this.geometry;
+               	const g = this.geometry;
+                const turnY = g.cy + g.intersection / 2;
+                const turnX = this.laneX(target);
                 const pts = [
                     { x: g.cx - g.approach, y: this.laneY(lane) },
                     { x: g.cx - g.intersection / 2, y: this.laneY(lane) },
-                    { x: g.cx - g.intersection / 4, y: g.cy + g.intersection / 4 },
-                    { x: this.laneX(target), y: g.cy + g.intersection / 2 },
-                    { x: this.laneX(target), y: g.cy + g.exit }
+                    { x: turnX, y: turnY },
+                    { x: turnX, y: g.cy + g.exit }
                 ];
                 return this.pathWithStop(pts, 1);
             }
