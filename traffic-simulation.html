@@ -522,10 +522,7 @@
                 const movingSpacing = this.sim.vehicleLength + this.sim.minGap;
                 const queuedSpacing = this.sim.vehicleLength + 0.5;
                 const tightReleaseDistance = this.stopDistance + this.sim.vehicleLength * 2;
-                const removalThreshold = Math.min(
-                    this.path.totalLength - 2,
-                    this.stopDistance + this.sim.geometry.intersection + 30
-                );
+                const removalThreshold = Math.max(this.stopDistance + 5, this.path.totalLength - 2);
 
                 for (let i = this.vehicles.length - 1; i >= 0; i--) {
                     const car = this.vehicles[i];
