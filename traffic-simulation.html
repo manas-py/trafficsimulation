@@ -417,7 +417,6 @@
             VEHICLE_LENGTH: 16,
             MIN_GAP: 7,
             STOP_BUFFER: 0.5,
-            QUEUE_FILL_SPEED: 1.4,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
@@ -651,7 +650,7 @@
                 this.minGap = CONST.MIN_GAP;
                 this.vehicleLength = CONST.VEHICLE_LENGTH;
                 this.minSpawnDistance = this.vehicleLength + this.minGap;
-                this.queueFillSpeed = CONST.QUEUE_FILL_SPEED;
+                this.queueFillSpeed = Math.max(5, this.vFree * 1.15);
                 this.lastArrivalCount = 0;
                 this.stats = {
                     departed: 0,
@@ -1169,6 +1168,7 @@
 
             setCarSpeed(value) {
                 this.vFree = value;
+                this.queueFillSpeed = Math.max(5, this.vFree * 1.15);
                 this.syncSpeedControls();
                 this.updateDerived();
             }
