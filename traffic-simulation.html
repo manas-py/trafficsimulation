@@ -417,7 +417,6 @@
             VEHICLE_LENGTH: 16,
             MIN_GAP: 7,
             STOP_BUFFER: 1.5,
-            QUEUE_CREEP_SPEED: 1.2,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
@@ -528,23 +527,11 @@
                     let allowed = this.path.totalLength - this.sim.vehicleLength * 0.25;
 
                     if (leader) {
-                    allowed = Math.min(allowed, leader.distance - spacing);
+                        allowed = Math.min(allowed, leader.distance - spacing);
                     }
 
-                    const isAheadOfStop = car.distance >= this.stopDistance - CONST.STOP_BUFFER;
-                    if (!this.isGreenNow && car.distance < this.stopDistance) {
-                        const queueTarget = Math.min(allowed, this.stopDistance - this.sim.minGap);
-                        const gapToTarget = queueTarget - car.distance;
-                        if (gapToTarget > 1e-3) {
-                            const creepAdvance = Math.min(this.sim.queueCreepSpeed * dt, gapToTarget);
-                            car.distance += Math.max(0, creepAdvance);
-                            car.speed = creepAdvance / dt;
-                        } else {
-                            car.distance = Math.min(car.distance, queueTarget);
-                            car.speed = 0;
-                        }
-                        car.recordSpeed();
-                        continue;
+                    if (!this.isGreenNow && car.distance < this.stopDistance - CONST.STOP_BUFFER) {
+                        allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
                     }
 
                     if (this.isGreenNow && !leader && car.distance < this.stopDistance) {
@@ -637,7 +624,6 @@
                 this.minGap = CONST.MIN_GAP;
                 this.vehicleLength = CONST.VEHICLE_LENGTH;
                 this.minSpawnDistance = this.vehicleLength + this.minGap;
-                this.queueCreepSpeed = CONST.QUEUE_CREEP_SPEED;
                 this.lastArrivalCount = 0;
                 this.stats = {
                     departed: 0,
