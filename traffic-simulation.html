@@ -188,6 +188,38 @@
             color: var(--muted);
         }
 
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+            margin-top: 16px;
+        }
+
+        .analysis-card {
+            background: rgba(15, 23, 42, 0.85);
+            border: 1px solid rgba(148, 163, 184, 0.15);
+            border-radius: 14px;
+            padding: 12px;
+            box-shadow: 0 12px 24px rgba(2, 6, 23, 0.45);
+        }
+
+        .analysis-card h3 {
+            margin: 0 0 8px 0;
+            font-size: 0.95rem;
+            text-transform: uppercase;
+            color: var(--accent);
+            letter-spacing: 0.08em;
+        }
+
+        .analysis-card.wide {
+            grid-column: span 2;
+        }
+
+        #session-duration {
+            font-weight: 600;
+            color: var(--accent-2);
+        }
+
         @media (max-width: 1100px) {
             .workspace {
                 grid-template-columns: 1fr;
@@ -302,30 +334,6 @@
         </section>
 
         <section class="panel">
-            <h2>Analytical Diagnostics (paper equations)</h2>
-            <div class="charts">
-                <div>
-                    <canvas id="headway-chart" width="400" height="300"></canvas>
-                </div>
-                <div>
-                    <canvas id="delay-chart" width="400" height="300"></canvas>
-                </div>
-            </div>
-            <div class="notes" style="margin-top:18px;">
-                <p><strong>Headway curve:</strong> h(T) = T + v<sub>min</sub>/(Av₀) + τ (Sec. 3.3). The highlighted point is the current reaction delay selection.</p>
-                <p><strong>Delay curve:</strong> W(λ) = (r² / 2C) · (1 + λ/(s − λ)) (Eq. 8) with cycle {10,5,10,5} s. The scatter point marks the operating arrival rate. Both curves recompute whenever T, A, or λ change.</p>
-            </div>
-        </section>
-
-        <section class="panel">
-            <h2>Model & Cycle Summary</h2>
-            <div class="notes">
-                <p>Cycle control now matches the prescribed six-step plan exactly: 10&nbsp;s of north/south through service (d1, d2, u2, u3), 5&nbsp;s of protected north/south turns (d3, u1), 10&nbsp;s of east/west through service (r1, r2, l2, l3), and 5&nbsp;s of protected east/west turns (r3, l1). The sequence then repeats with no overlap between conflicting streams. Poisson arrivals from Sec.&nbsp;4.1 are sampled once per approach and randomly assigned to the lane-specific turn options according to their prevalence, reproducing the stochastic platoons documented in the manuscript.</p>
-                <p>The canvas draws the 12-lane geometry exactly as prescribed: three approach lanes per leg with explicit mapping to the downstream lanes (wr, er, wl, el, nu, su, nd, sd), textured asphalt, crosswalks, and stylized vehicles so the visuals match the reference figure while still highlighting signal permissions and queue growth governed by the microscopic driver-delay physics.</p>
-            </div>
-        </section>
-
-        <section class="panel">
             <h2>Live Simulation Metrics</h2>
             <div class="charts">
                 <div>
@@ -336,6 +344,33 @@
                 </div>
                 <div>
                     <canvas id="live-throughput-chart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <section class="panel" id="analysis-panel">
+            <h2>Cycle Analysis</h2>
+            <p class="notes">Last session duration: <span id="session-duration">0 s</span></p>
+            <div class="analysis-grid">
+                <div class="analysis-card">
+                    <h3>Start-Up Lost Time</h3>
+                    <canvas id="startup-chart"></canvas>
+                </div>
+                <div class="analysis-card">
+                    <h3>Poisson Arrivals Histogram</h3>
+                    <canvas id="poisson-chart"></canvas>
+                </div>
+                <div class="analysis-card wide">
+                    <h3>Session Queue vs Time</h3>
+                    <canvas id="session-queue-chart"></canvas>
+                </div>
+                <div class="analysis-card">
+                    <h3>Delay vs λ</h3>
+                    <canvas id="delay-lambda-chart"></canvas>
+                </div>
+                <div class="analysis-card">
+                    <h3>Throughput vs λ</h3>
+                    <canvas id="throughput-lambda-chart"></canvas>
                 </div>
             </div>
         </section>
@@ -370,7 +405,8 @@
             headway: document.getElementById('headway-value'),
             saturation: document.getElementById('saturation-value'),
             formulaDelay: document.getElementById('formula-delay'),
-            cycleLengthValue: document.getElementById('cycle-length-value')
+            cycleLengthValue: document.getElementById('cycle-length-value'),
+            sessionDuration: document.getElementById('session-duration')
         };
 
         const CONST = {
@@ -381,6 +417,7 @@
             VEHICLE_LENGTH: 16,
             MIN_GAP: 7,
             STOP_BUFFER: 1.5,
+            QUEUE_CREEP_SPEED: 1.2,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
@@ -408,8 +445,8 @@
             }));
         }
 
-        const charts = initCharts();
         const liveCharts = initLiveCharts();
+        const analysisCharts = initAnalysisCharts();
 
         class Vehicle {
             constructor(lane, distance, params) {
@@ -583,6 +620,8 @@
                 this.minGap = CONST.MIN_GAP;
                 this.vehicleLength = CONST.VEHICLE_LENGTH;
                 this.minSpawnDistance = this.vehicleLength + this.minGap;
+                this.queueCreepSpeed = CONST.QUEUE_CREEP_SPEED;
+                this.lastArrivalCount = 0;
                 this.stats = {
                     departed: 0,
                     totalDelay: 0,
@@ -603,6 +642,11 @@
                     west: ['l1', 'l2', 'l3']
                 };
                 this.lanes = this.buildLanes();
+                this.laneOrder = Object.values(this.approachMap).flat();
+                this.sessionSummaries = [];
+                this.sessionMetrics = this.createSessionMetrics();
+                this.sessionStartTime = 0;
+                this.sessionActive = false;
                 this.refreshLaneLookup();
                 this.cycleLength = BASE_CYCLE_LENGTH * this.cycleScale;
                 if (UI.cycleLengthValue) {
@@ -858,12 +902,7 @@
                 this.saturation = 3600 / this.headway;
                 UI.headway.textContent = this.headway.toFixed(2);
                 UI.saturation.textContent = this.saturation.toFixed(0);
-                if (charts.headway) {
-                    updateHeadwayChart(charts.headway, this.A, this.params.T);
-                }
-                if (charts.delay) {
-                    updateDelayChart(charts.delay, this);
-                }
+                this.updateReferenceCurves();
             }
 
             getApproachCount() {
