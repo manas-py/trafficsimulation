@@ -234,7 +234,7 @@
                     </div>
                     <div>
                         <label for="car-speed">Car speed (m/s)<span class="value-chip" id="car-speed-value">10 m/s</span></label>
-                        <input type="range" id="car-speed" min="5" max="25" step="1" value="10">
+                        <input type="range" id="car-speed" min="5" max="40" step="1" value="10">
                     </div>
                     <div>
                         <label for="animation-speed">Animation speed<span class="value-chip" id="animation-speed-value">1×</span></label>
@@ -378,7 +378,7 @@
             V_MIN: 2,
             V_FREE: 10,
             TAU: 0.30,
-            VEHICLE_LENGTH: 5,
+            VEHICLE_LENGTH: 16,
             MIN_GAP: 7,
             STOP_BUFFER: 1.5,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
@@ -387,10 +387,12 @@
         const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
 
         const BASE_PHASES = [
-            { name: 'NS straight', duration: 10, greens: ['d1', 'd2', 'u2', 'u3'] },
-            { name: 'NS turns', duration: 5, greens: ['d3', 'u1'] },
-            { name: 'EW straight', duration: 10, greens: ['r1', 'r2', 'l2', 'l3'] },
-            { name: 'EW turns', duration: 5, greens: ['r3', 'l1'] }
+            { name: 'NS straight', duration: 15, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
+            { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-green' },
+            { name: 'NS left yellow', duration: 3, greens: ['d3', 'u1'], allowExistingOnly: ['d3', 'u1'], signal: 'ns-yellow' },
+            { name: 'EW straight', duration: 15, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
+            { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-green' },
+            { name: 'EW left yellow', duration: 3, greens: ['r3', 'l1'], allowExistingOnly: ['r3', 'l1'], signal: 'ew-yellow' }
         ];
 
         const BASE_CYCLE_LENGTH = BASE_PHASES.reduce((sum, phase) => sum + phase.duration, 0);
@@ -399,7 +401,9 @@
             return BASE_PHASES.map(phase => ({
                 name: phase.name,
                 duration: phase.duration * scale,
-                greens: [...phase.greens]
+                greens: [...(phase.greens || [])],
+                allowExistingOnly: phase.allowExistingOnly ? [...phase.allowExistingOnly] : [],
+                signal: phase.signal || null
             }));
         }
 
@@ -448,19 +452,20 @@
                 this.wasGreen = false;
                 this.lastReleaseTime = -Infinity;
                 this.hasReleasedOnce = false;
+                this.allowNewEntries = false;
             }
 
-            handleSignal(phaseName, time) {
-                const green = this.greenPhases.includes(phaseName);
-                if (green && !this.wasGreen) {
+            handleSignal(phaseName, time, isGreen, allowExistingOnly) {
+                if (isGreen && !this.wasGreen) {
                     this.lastReleaseTime = time;
                     this.hasReleasedOnce = false;
                 }
-                if (!green && this.wasGreen) {
+                if (!isGreen && this.wasGreen) {
                     this.hasReleasedOnce = false;
                 }
-                this.wasGreen = green;
-                this.isGreenNow = green;
+                this.wasGreen = isGreen;
+                this.isGreenNow = isGreen;
+                this.allowNewEntries = isGreen && !allowExistingOnly;
             }
 
             spawn(arrivals) {
@@ -511,7 +516,7 @@
                     car.speed = clamp(car.speed + accel * dt, 0, freeSpeed);
                     car.distance = Math.min(car.distance + car.speed * dt, allowed);
 
-                    if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
+                    if (!car.released && car.distance >= this.stopDistance && this.isGreenNow && this.allowNewEntries) {
                         this.lastReleaseTime = this.sim.time;
                         this.hasReleasedOnce = true;
                         car.released = true;
@@ -560,6 +565,7 @@
                 this.phasePlan = buildPhasePlan(this.cycleScale);
                 this.cycleLength = BASE_CYCLE_LENGTH * this.cycleScale;
                 this.activePhaseName = this.phasePlan[0].name;
+                this.currentSignalState = this.phasePlan[0].signal || null;
                 if (UI.cycleScale) {
                     UI.cycleScale.value = this.cycleScale;
                 }
@@ -930,11 +936,13 @@
                 if (newIndex < 0) newIndex = 0;
                 this.phaseIndex = newIndex;
                 this.phaseTimer = progress * this.phasePlan[this.phaseIndex].duration;
+                this.currentSignalState = this.phasePlan[this.phaseIndex].signal || null;
             }
 
             setCarSpeed(value) {
                 this.vFree = value;
                 this.syncSpeedControls();
+                this.updateDerived();
             }
 
             setAnimationSpeed(value) {
@@ -1001,8 +1009,13 @@
                 }
                 const current = this.phasePlan[this.phaseIndex];
                 this.activePhaseName = current.name;
+                this.currentSignalState = current.signal || null;
+                const greenSet = new Set(current.greens || []);
+                const allowExisting = new Set(current.allowExistingOnly || []);
                 for (const lane of this.lanes) {
-                    lane.handleSignal(current.name, this.time);
+                    const isGreen = greenSet.has(lane.id);
+                    const allowExistingOnly = allowExisting.has(lane.id);
+                    lane.handleSignal(current.name, this.time, isGreen, allowExistingOnly);
                 }
                 UI.phase.textContent = `${current.name} · ${this.phaseTimer.toFixed(1)} s`;
                 return current;
@@ -1080,12 +1093,18 @@
             drawIntersectionSignals() {
                 const ctx = this.ctx;
                 const g = this.geometry;
-                const nsPhases = new Set(['NS straight', 'NS turns']);
-                const ewPhases = new Set(['EW straight', 'EW turns']);
-                const nsGreen = nsPhases.has(this.activePhaseName);
-                const ewGreen = ewPhases.has(this.activePhaseName);
+                const determineColor = (direction) => {
+                    const state = this.currentSignalState;
+                    const active = state && state.startsWith(direction);
+                    if (active && state.endsWith('green')) return '#22c55e';
+                    if (active && state.endsWith('yellow')) return '#facc15';
+                    return '#ef4444';
+                };
 
-                const drawSignal = (x, y, rotation, isGreen, label) => {
+                const nsColor = determineColor('ns');
+                const ewColor = determineColor('ew');
+
+                const drawSignal = (x, y, rotation, color, label) => {
                     ctx.save();
                     ctx.translate(x, y);
                     ctx.rotate(rotation);
@@ -1093,7 +1112,7 @@
                     ctx.fillRect(-2, -20, 4, 40);
                     ctx.fillStyle = '#0f172a';
                     ctx.fillRect(-16, -14, 32, 20);
-                    ctx.fillStyle = isGreen ? '#22c55e' : '#ef4444';
+                    ctx.fillStyle = color;
                     ctx.beginPath();
                     ctx.arc(0, -2, 7, 0, Math.PI * 2);
                     ctx.fill();
@@ -1106,10 +1125,10 @@
                 };
 
                 const hub = g.intersection / 6;
-                drawSignal(g.cx, g.cy - hub, 0, nsGreen, 'N');
-                drawSignal(g.cx, g.cy + hub, Math.PI, nsGreen, 'S');
-                drawSignal(g.cx + hub, g.cy, Math.PI / 2, ewGreen, 'E');
-                drawSignal(g.cx - hub, g.cy, -Math.PI / 2, ewGreen, 'W');
+                drawSignal(g.cx, g.cy - hub, 0, nsColor, 'N');
+                drawSignal(g.cx, g.cy + hub, Math.PI, nsColor, 'S');
+                drawSignal(g.cx + hub, g.cy, Math.PI / 2, ewColor, 'E');
+                drawSignal(g.cx - hub, g.cy, -Math.PI / 2, ewColor, 'W');
             }
 
             drawRoad() {
@@ -1235,6 +1254,7 @@
                 this.phaseTimer = 0;
                 this.phasePlan = buildPhasePlan(this.cycleScale);
                 this.activePhaseName = this.phasePlan[0].name;
+                this.currentSignalState = this.phasePlan[0].signal || null;
                 this.stats = { departed: 0, totalDelay: 0, queue: 0, throughput: 0 };
                 this.liveHistory = { time: [], queue: [], delay: [], throughput: [] };
                 this.lanes = this.buildLanes();
