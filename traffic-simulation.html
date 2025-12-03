@@ -416,7 +416,7 @@
             TAU: 0.30,
             VEHICLE_LENGTH: 16,
             MIN_GAP: 7,
-            STOP_BUFFER: 1.5,
+            STOP_BUFFER: 0.5,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
@@ -530,7 +530,7 @@
                         allowed = Math.min(allowed, leader.distance - spacing);
                     }
 
-                    if (!this.isGreenNow && car.distance < this.stopDistance - CONST.STOP_BUFFER) {
+                    if (!this.isGreenNow && car.distance < this.stopDistance) {
                         allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
                     }
 
