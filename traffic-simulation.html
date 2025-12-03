@@ -519,7 +519,8 @@
                 if (!this.vehicles.length) return;
                 this.vehicles.sort((a, b) => a.distance - b.distance);
                 const delaySteps = this.sim.delaySteps;
-                const spacing = this.sim.vehicleLength + this.sim.minGap;
+                const movingSpacing = this.sim.vehicleLength + this.sim.minGap;
+                const queuedSpacing = this.sim.vehicleLength + 0.5;
 
                 for (let i = this.vehicles.length - 1; i >= 0; i--) {
                     const car = this.vehicles[i];
@@ -527,7 +528,8 @@
                     let allowed = this.path.totalLength - this.sim.vehicleLength * 0.25;
 
                     if (leader) {
-                        allowed = Math.min(allowed, leader.distance - spacing);
+                        const targetSpacing = this.isGreenNow ? movingSpacing : queuedSpacing;
+                        allowed = Math.min(allowed, leader.distance - targetSpacing);
                     }
 
                     if (!this.isGreenNow && car.distance < this.stopDistance) {
