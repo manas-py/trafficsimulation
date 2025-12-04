@@ -544,8 +544,9 @@
                     if (!this.isGreenNow) {
                         const holdPoint = Math.max(0, this.stopDistance - CONST.STOP_BUFFER);
                         const queueHoldPoint = Math.max(0, this.stopDistance - this.sim.minGap);
-                        const nearStopThreshold = Math.max(0, this.stopDistance - this.sim.stopApproachWindow);
-                        const nearStop = car.distance >= nearStopThreshold;
+                        const dynamicWindow = Math.max(20, Math.min(this.sim.stopApproachWindow, this.stopDistance * 0.6));
+                        const distanceToStop = Math.max(0, this.stopDistance - car.distance);
+                        const nearStop = distanceToStop <= dynamicWindow;
                         allowed = Math.min(allowed, holdPoint);
                         if (nearStop) {
                             const queueTarget = Math.min(allowed, queueHoldPoint);
