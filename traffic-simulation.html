@@ -303,7 +303,7 @@
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Phase / timer</span>
-                        <span class="stat-value" id="phase-label">NS straight · 0.0 s</span>
+                        <span class="stat-value" id="phase-label">NS green · 0.0 s</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Total queue (veh)</span>
@@ -423,17 +423,16 @@
 
         const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
         const ALL_LANES = ['d1','d2','d3','u1','u2','u3','r1','r2','r3','l1','l2','l3'];
+        const NORTH_SOUTH_LANES = ['d1','d2','d3','u1','u2','u3'];
+        const EAST_WEST_LANES = ['r1','r2','r3','l1','l2','l3'];
         const SCATTER_HISTORY_LIMIT = 60;
 
+        // Base 10+5+10+5 second cycle from the paper: NS moves, clearance, EW moves, clearance.
         const BASE_PHASES = [
-            { name: 'NS straight', duration: 12, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
-            { name: 'NS straight yellow', duration: 3, greens: [], signal: 'ns-straight-yellow' },
-            { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-green' },
-            { name: 'NS left yellow', duration: 3, greens: [], signal: 'ns-left-yellow' },
-            { name: 'EW straight', duration: 12, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
-            { name: 'EW straight yellow', duration: 3, greens: [], signal: 'ew-straight-yellow' },
-            { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-green' },
-            { name: 'EW left yellow', duration: 3, greens: [], signal: 'ew-left-yellow' }
+            { name: 'NS green', duration: 10, greens: NORTH_SOUTH_LANES, signal: 'ns-green' },
+            { name: 'NS clearance', duration: 5, greens: [], signal: 'ns-yellow' },
+            { name: 'EW green', duration: 10, greens: EAST_WEST_LANES, signal: 'ew-green' },
+            { name: 'EW clearance', duration: 5, greens: [], signal: 'ew-yellow' }
         ];
 
         const BASE_CYCLE_LENGTH = BASE_PHASES.reduce((sum, phase) => sum + phase.duration, 0);
