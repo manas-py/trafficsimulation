@@ -416,6 +416,7 @@
             MIN_GAP: 7,
             STOP_BUFFER: 0.5,
             QUEUE_CREEP_SPEED: 1.2,
+            STOP_APPROACH_WINDOW: 90,
             CANVAS: { WIDTH: CANVAS.width, HEIGHT: CANVAS.height }
         };
 
@@ -540,19 +541,26 @@
                     }
 
                     // 1. Red Light Logic
-                    if (!this.isGreenNow && car.distance < this.stopDistance) {
-                        const queueTarget = Math.min(allowed, this.stopDistance - this.sim.minGap);
-                        const gapToTarget = queueTarget - car.distance;
-                        if (gapToTarget > 1e-3) {
-                            const creepAdvance = Math.min(this.sim.queueCreepSpeed * dt, gapToTarget);
-                            car.distance += Math.max(0, creepAdvance);
-                            car.speed = creepAdvance / dt;
-                        } else {
-                            car.distance = Math.min(car.distance, queueTarget);
-                            car.speed = 0;
+                    if (!this.isGreenNow) {
+                        const holdPoint = Math.max(0, this.stopDistance - CONST.STOP_BUFFER);
+                        const queueHoldPoint = Math.max(0, this.stopDistance - this.sim.minGap);
+                        const nearStopThreshold = Math.max(0, this.stopDistance - this.sim.stopApproachWindow);
+                        const nearStop = car.distance >= nearStopThreshold;
+                        allowed = Math.min(allowed, holdPoint);
+                        if (nearStop) {
+                            const queueTarget = Math.min(allowed, queueHoldPoint);
+                            const gapToTarget = queueTarget - car.distance;
+                            if (gapToTarget > 1e-3) {
+                                const creepAdvance = Math.min(this.sim.queueCreepSpeed * dt, gapToTarget);
+                                car.distance += Math.max(0, creepAdvance);
+                                car.speed = creepAdvance / dt;
+                            } else {
+                                car.distance = Math.min(car.distance, queueTarget);
+                                car.speed = 0;
+                            }
+                            car.recordSpeed();
+                            continue;
                         }
-                        car.recordSpeed();
-                        continue;
                     }
 
                     // 2. Start-Up Logic (Saturation Flow)
@@ -673,6 +681,7 @@
                 this.vehicleLength = CONST.VEHICLE_LENGTH;
                 this.minSpawnDistance = this.vehicleLength + this.minGap;
                 this.queueCreepSpeed = CONST.QUEUE_CREEP_SPEED;
+                this.stopApproachWindow = CONST.STOP_APPROACH_WINDOW;
                 this.lastArrivalCount = 0;
                 this.stats = {
                     departed: 0,
