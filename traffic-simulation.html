@@ -515,8 +515,8 @@
             spawn(arrivals) {
                 for (let i = 0; i < arrivals; i++) {
                     const head = this.vehicles.length > 0 ? this.vehicles[0] : null;
-                const spacing = this.sim.vehicleLength + this.sim.minGap;
-                if (head && head.distance < spacing) break;
+                    const spacing = this.sim.vehicleLength + this.sim.minGap;
+                    if (head && head.distance < spacing) break;
                     const vehicle = new Vehicle(this, 0, this.sim.vehicleParams);
                     this.vehicles.unshift(vehicle);
                 }
@@ -562,13 +562,24 @@
 
                     const freeSpeed = this.sim.vFree;
                     let leaderSpeed = leader ? leader.delayedSpeed(delaySteps) : freeSpeed;
+                    
+                    // Prevent jitter if leader is very close or crashed
                     if (allowed - car.distance <= 0.1) {
                         leaderSpeed = 0;
                     }
+
                     const followerSpeed = car.delayedSpeed(delaySteps);
                     const accel = this.sim.A * (leaderSpeed - followerSpeed);
                     car.speed = clamp(car.speed + accel * dt, 0, freeSpeed);
-                    car.distance = Math.min(car.distance + car.speed * dt, allowed);
+                    
+                    // Fixed logic: prevent "glitching" backward
+                    let potentialMove = car.speed * dt;
+                    if (car.distance + potentialMove > allowed) {
+                        // Prevent overlap without teleporting backward
+                        potentialMove = Math.max(0, allowed - car.distance);
+                        car.speed = 0; // Emergency stop
+                    }
+                    car.distance += potentialMove;
 
                     if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
                         this.lastReleaseTime = this.sim.time;
@@ -589,7 +600,8 @@
 
                 const survivors = [];
                 for (const car of this.vehicles) {
-                    if (car.distance >= this.path.totalLength - 2) {
+                    // Adjusted margin to prevent cars popping out before leaving screen
+                    if (car.distance >= this.path.totalLength - 0.5) {
                         this.sim.registerDeparture(car);
                     } else {
                         survivors.push(car);
@@ -1043,17 +1055,18 @@
             }
 
             buildLanes() {
+                // Fixed Phase names: 'NS turns' -> 'NS left', 'EW turns' -> 'EW left'
                 const configs = [
                     { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.7 },
                     { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
-                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS turns'], color: '#f97316', arrivalWeight: 0.9 },
-                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS turns'], color: '#f97316', arrivalWeight: 0.7 },
+                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS left'], color: '#f97316', arrivalWeight: 0.9 },
+                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS left'], color: '#f97316', arrivalWeight: 0.7 },
                     { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
                     { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.9 },
                     { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 0.9 },
                     { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 1.2 },
-                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW turns'], color: '#22d3ee', arrivalWeight: 0.7 },
-                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW turns'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW left'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW left'], color: '#22d3ee', arrivalWeight: 0.7 },
                     { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 1.2 },
                     { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 0.9 }
                 ];
