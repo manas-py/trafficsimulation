@@ -301,7 +301,7 @@
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Phase / timer</span>
-                        <span class="stat-value" id="phase-label">NS straight · 0.0 s</span>
+                        <span class="stat-value" id="phase-label">NS green · 0.0 s</span>
                     </div>
                     <div class="stat-card">
                         <span class="stat-label">Total queue (veh)</span>
@@ -421,17 +421,16 @@
 
         const CAR_COLORS = ['#f87171', '#fb923c', '#fbbf24', '#4ade80', '#2dd4bf', '#38bdf8', '#a78bfa', '#f472b6'];
         const ALL_LANES = ['d1','d2','d3','u1','u2','u3','r1','r2','r3','l1','l2','l3'];
+        const NORTH_SOUTH_LANES = ['d1','d2','d3','u1','u2','u3'];
+        const EAST_WEST_LANES = ['r1','r2','r3','l1','l2','l3'];
         const SCATTER_HISTORY_LIMIT = 60;
 
+        // Base 10+5+10+5 second cycle from the paper: NS moves, clearance, EW moves, clearance.
         const BASE_PHASES = [
-            { name: 'NS straight', duration: 12, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
-            { name: 'NS straight yellow', duration: 3, greens: [], signal: 'ns-straight-yellow' },
-            { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-left-green' },
-            { name: 'NS left yellow', duration: 3, greens: [], signal: 'ns-left-yellow' },
-            { name: 'EW straight', duration: 12, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
-            { name: 'EW straight yellow', duration: 3, greens: [], signal: 'ew-straight-yellow' },
-            { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-left-green' },
-            { name: 'EW left yellow', duration: 3, greens: [], signal: 'ew-left-yellow' }
+            { name: 'NS green', duration: 10, greens: NORTH_SOUTH_LANES, signal: 'ns-green' },
+            { name: 'NS clearance', duration: 5, greens: [], signal: 'ns-yellow' },
+            { name: 'EW green', duration: 10, greens: EAST_WEST_LANES, signal: 'ew-green' },
+            { name: 'EW clearance', duration: 5, greens: [], signal: 'ew-yellow' }
         ];
 
         const BASE_CYCLE_LENGTH = BASE_PHASES.reduce((sum, phase) => sum + phase.duration, 0);
@@ -1075,20 +1074,20 @@
 
             buildLanes() {
                 // IMPORTANT: Phase names must match BASE_PHASES exactly
-                // NS straight, NS left, EW straight, EW left
+                // NS green, EW green
                 const configs = [
-                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.7 },
-                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
-                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS left'], color: '#f97316', arrivalWeight: 0.9 },
-                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS left'], color: '#f97316', arrivalWeight: 0.7 },
-                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
-                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.9 },
-                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 0.9 },
-                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 1.2 },
-                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW left'], color: '#22d3ee', arrivalWeight: 0.7 },
-                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW left'], color: '#22d3ee', arrivalWeight: 0.7 },
-                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 1.2 },
-                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW straight'], color: '#4ade80', arrivalWeight: 0.9 }
+                    { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 0.7 },
+                    { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 1.2 },
+                    { id: 'd3', builder: () => this.northToEast('d3', 'el1'), greens: ['NS green'], color: '#f97316', arrivalWeight: 0.9 },
+                    { id: 'u1', builder: () => this.southToWest('u1', 'wr3'), greens: ['NS green'], color: '#f97316', arrivalWeight: 0.7 },
+                    { id: 'u2', builder: () => this.southStraight('u2', 'nu2'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 1.2 },
+                    { id: 'u3', builder: () => this.southToEast('u3', 'el3'), greens: ['NS green'], color: '#fbbf24', arrivalWeight: 0.9 },
+                    { id: 'r1', builder: () => this.eastToNorth('r1', 'nu3'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 0.9 },
+                    { id: 'r2', builder: () => this.eastStraight('r2', 'wr2'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 1.2 },
+                    { id: 'r3', builder: () => this.eastToSouth('r3', 'sd3'), greens: ['EW green'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l1', builder: () => this.westToNorth('l1', 'nu1'), greens: ['EW green'], color: '#22d3ee', arrivalWeight: 0.7 },
+                    { id: 'l2', builder: () => this.westStraight('l2', 'el2'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 1.2 },
+                    { id: 'l3', builder: () => this.westToSouth('l3', 'sd1'), greens: ['EW green'], color: '#4ade80', arrivalWeight: 0.9 }
                 ];
                 return configs.map(cfg => {
                     const built = cfg.builder();
