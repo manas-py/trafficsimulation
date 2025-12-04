@@ -16,9 +16,7 @@
             --muted: #94a3b8;
         }
 
-        * {
-            box-sizing: border-box;
-        }
+        * { box-sizing: border-box; }
 
         body {
             margin: 0;
@@ -278,9 +276,9 @@
                     <button class="secondary" id="reset-btn">Reset</button>
                 </div>
                 <div class="legend">
-                    <strong>d1:</strong> N→W left to wr1
+                    <strong>d1:</strong> N→W right to wr1
                     <strong>d2:</strong> N→S straight to sd2
-                    <strong>d3:</strong> N→E right to el1
+                    <strong>d3:</strong> N→E left to el1
                     <strong>u1:</strong> S→W left to wr3
                     <strong>u2:</strong> S→N straight to nu2
                     <strong>u3:</strong> S→E right to el3
@@ -428,11 +426,11 @@
         const BASE_PHASES = [
             { name: 'NS straight', duration: 12, greens: ['d1', 'd2', 'u2', 'u3'], signal: 'ns-green' },
             { name: 'NS straight yellow', duration: 3, greens: [], signal: 'ns-straight-yellow' },
-            { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-green' },
+            { name: 'NS left', duration: 7, greens: ['d3', 'u1'], signal: 'ns-left-green' },
             { name: 'NS left yellow', duration: 3, greens: [], signal: 'ns-left-yellow' },
             { name: 'EW straight', duration: 12, greens: ['r1', 'r2', 'l2', 'l3'], signal: 'ew-green' },
             { name: 'EW straight yellow', duration: 3, greens: [], signal: 'ew-straight-yellow' },
-            { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-green' },
+            { name: 'EW left', duration: 7, greens: ['r3', 'l1'], signal: 'ew-left-green' },
             { name: 'EW left yellow', duration: 3, greens: [], signal: 'ew-left-yellow' }
         ];
 
@@ -498,7 +496,8 @@
 
             handleSignal(phaseName, time, isGreen) {
                 if (isGreen && !this.wasGreen) {
-                    this.lastReleaseTime = time;
+                    // Reset release time on fresh green to avoid blocking initial cars
+                    this.lastReleaseTime = -Infinity; 
                     this.hasReleasedOnce = false;
                     this.phaseGreenStartTime = time;
                     this.firstReleaseCaptured = false;
@@ -514,9 +513,12 @@
 
             spawn(arrivals) {
                 for (let i = 0; i < arrivals; i++) {
+                    // Safety check: Don't spawn if queue is full at the back
+                    // Note: vehicles sorted by distance, so vehicles[0] is the tail
                     const head = this.vehicles.length > 0 ? this.vehicles[0] : null;
                     const spacing = this.sim.vehicleLength + this.sim.minGap;
                     if (head && head.distance < spacing) break;
+                    
                     const vehicle = new Vehicle(this, 0, this.sim.vehicleParams);
                     this.vehicles.unshift(vehicle);
                 }
@@ -524,6 +526,7 @@
 
             updateVehicles(dt) {
                 if (!this.vehicles.length) return;
+                // Sort ensures vehicles[length-1] is the head (furthest distance)
                 this.vehicles.sort((a, b) => a.distance - b.distance);
                 const delaySteps = this.sim.delaySteps;
                 const spacing = this.sim.vehicleLength + this.sim.minGap;
@@ -537,6 +540,7 @@
                         allowed = Math.min(allowed, leader.distance - spacing);
                     }
 
+                    // 1. Red Light Logic
                     if (!this.isGreenNow && car.distance < this.stopDistance) {
                         const queueTarget = Math.min(allowed, this.stopDistance - this.sim.minGap);
                         const gapToTarget = queueTarget - car.distance;
@@ -552,35 +556,59 @@
                         continue;
                     }
 
+                    // 2. Start-Up Logic (Saturation Flow)
+                    // Only applies to the specific car crossing the line
                     if (this.isGreenNow && !leader && car.distance < this.stopDistance) {
                         const gap = this.hasReleasedOnce ? this.sim.headway : this.sim.tRoll;
-                        const timeSince = this.sim.time - this.lastReleaseTime;
-                        if (timeSince < gap) {
-                            allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
+                        // Only check timeSince if lastReleaseTime is valid (not -Infinity)
+                        // If -Infinity, it means the queue was empty, so go immediately.
+                        if (this.lastReleaseTime > 0) {
+                            const timeSince = this.sim.time - this.lastReleaseTime;
+                            if (timeSince < gap) {
+                                allowed = Math.min(allowed, this.stopDistance - CONST.STOP_BUFFER);
+                            }
                         }
                     }
 
+                    // 3. Physics Update
                     const freeSpeed = this.sim.vFree;
                     let leaderSpeed = leader ? leader.delayedSpeed(delaySteps) : freeSpeed;
                     
-                    // Prevent jitter if leader is very close or crashed
+                    // Stop confusing the follower if leader is crashing or glitching
                     if (allowed - car.distance <= 0.1) {
-                        leaderSpeed = 0;
+                         // leader is effectively stopped relative to us
+                         // Use 0 to force braking
+                         leaderSpeed = 0;
                     }
 
                     const followerSpeed = car.delayedSpeed(delaySteps);
-                    const accel = this.sim.A * (leaderSpeed - followerSpeed);
+                    let accel = this.sim.A * (leaderSpeed - followerSpeed);
+                    
+                    // Anti-Stick Nudge: If we should be moving but aren't, force a tiny accel
+                    if (this.isGreenNow && !leader && car.speed < 0.1 && car.distance < this.stopDistance - 5) {
+                        accel = Math.max(accel, 0.5); 
+                    }
+
                     car.speed = clamp(car.speed + accel * dt, 0, freeSpeed);
                     
-                    // Fixed logic: prevent "glitching" backward
+                    // 4. Overlap Prevention (Soft Clamp)
                     let potentialMove = car.speed * dt;
                     if (car.distance + potentialMove > allowed) {
-                        // Prevent overlap without teleporting backward
-                        potentialMove = Math.max(0, allowed - car.distance);
-                        car.speed = 0; // Emergency stop
+                        // Clamp position, but DO NOT force speed to 0 if we are just following a moving queue
+                        // If we force speed=0, history becomes 0, and the car behind us stops forever.
+                        // We set distance to allowed, but keep speed variable alive (unless leader is actually stopped)
+                        car.distance = allowed;
+                        
+                        // If leader is stopped, we stop. If leader is moving, we keep "pressure"
+                        if (leaderSpeed < 0.1) {
+                            car.speed = 0;
+                        } 
+                        // If leader is moving, we effectively move at leader's speed due to the clamp next frame
+                    } else {
+                        car.distance += potentialMove;
                     }
-                    car.distance += potentialMove;
 
+                    // 5. Release Detection
                     if (!car.released && car.distance >= this.stopDistance && this.isGreenNow) {
                         this.lastReleaseTime = this.sim.time;
                         this.hasReleasedOnce = true;
@@ -600,7 +628,6 @@
 
                 const survivors = [];
                 for (const car of this.vehicles) {
-                    // Adjusted margin to prevent cars popping out before leaving screen
                     if (car.distance >= this.path.totalLength - 0.5) {
                         this.sim.registerDeparture(car);
                     } else {
@@ -612,14 +639,6 @@
 
             queueLength() {
                 return this.vehicles.filter(v => v.distance < this.stopDistance - 1).length;
-            }
-
-            pointAt(distance) {
-                return this.sim.pointAlongPath(this.path, distance);
-            }
-
-            headingAt(distance) {
-                return this.sim.headingAlongPath(this.path, distance);
             }
         }
 
@@ -1055,7 +1074,8 @@
             }
 
             buildLanes() {
-                // Fixed Phase names: 'NS turns' -> 'NS left', 'EW turns' -> 'EW left'
+                // IMPORTANT: Phase names must match BASE_PHASES exactly
+                // NS straight, NS left, EW straight, EW left
                 const configs = [
                     { id: 'd1', builder: () => this.northToWest('d1', 'wr1'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 0.7 },
                     { id: 'd2', builder: () => this.northStraight('d2', 'sd2'), greens: ['NS straight'], color: '#fbbf24', arrivalWeight: 1.2 },
@@ -1448,12 +1468,18 @@
                     drawRoundedRect(ctx, -car.length * 0.18, -car.width * 0.35, car.length * 0.36, car.width * 0.7, 2, car.windowColor);
                     drawRoundedRect(ctx, -car.length * 0.1, -car.width * 0.18, car.length * 0.2, car.width * 0.36, 1.5, car.roofColor);
 
+                    // Brake lights
+                    const isStopped = car.speed < 0.2;
+                    ctx.fillStyle = isStopped ? '#ef4444' : '#f87171'; // Bright red if stopped, dim if moving
+                    const lightSize = isStopped ? 3.5 : 2;
+                    
+                    ctx.fillRect(-car.length / 2, -car.width / 2 + 1, 2, lightSize);
+                    ctx.fillRect(-car.length / 2, car.width / 2 - 1 - lightSize, 2, lightSize);
+
+                    // Headlights
                     ctx.fillStyle = '#fde68a';
                     ctx.fillRect(car.length / 2 - 2.5, -car.width / 2 + 1, 2, 2.8);
                     ctx.fillRect(car.length / 2 - 2.5, car.width / 2 - 3.8, 2, 2.8);
-                    ctx.fillStyle = '#f87171';
-                    ctx.fillRect(-car.length / 2, -car.width / 2 + 1, 2, 2.8);
-                    ctx.fillRect(-car.length / 2, car.width / 2 - 3.8, 2, 2.8);
 
                     ctx.restore();
                 }
